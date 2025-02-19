@@ -134,7 +134,6 @@ class RotaryEncoder {
       if (currentStateCLK != lastStateCLK && currentStateCLK == HIGH) {
         counter += (digitalRead(DT) != currentStateCLK) ? 1 : -1;
         counter = (counter < 0) ? (counter + maxNumber) : (counter % maxNumber);
-        Serial.println(counter);
       }
       lastStateCLK = currentStateCLK;
       return counter;
