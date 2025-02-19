@@ -179,10 +179,15 @@ void loop() {
 
   Serial.println(encoderStatus);
 
-  if (buttonPressed)
-    digitalWrite(buttonOnStateLed, HIGH);
-  else
-    digitalWrite(buttonOnStateLed, LOW);
+
+  if (Serial.available()) {
+    String command = Serial.readStringUntil('\n');
+    
+    if (command == "ON")
+      digitalWrite(buttonOnStateLed, HIGH);
+    else if (command == "OFF")
+      digitalWrite(buttonOnStateLed, LOW); 
+  }
   
   display.updateValue(encoderValue);
   display.refresh();
