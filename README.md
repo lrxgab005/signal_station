@@ -36,3 +36,10 @@ Install requirements
 source env/bin/activate
 pip install -r requirements.txt
 ```
+
+### Enable Git LFS
+
+```sh
+git lfs install
+git lfs pull
+```
