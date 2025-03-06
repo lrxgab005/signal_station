@@ -7,7 +7,7 @@ const int buttonOnStateLed = 14;
 const int CLK = 2;
 const int DT = 3;
 const int SW = 4;
-const int maxNunmber = 100;
+const int maxNunmber = 3;
 
 // Segment pins for 7 segments: A, B, C, D, E, F, G
 const int segmentPins[7] = {7, 8, 9, 10, 11, 12, 13};
