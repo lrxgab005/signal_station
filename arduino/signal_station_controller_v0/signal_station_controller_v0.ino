@@ -13,7 +13,11 @@ const int maxNunmber = 99;
 const int segmentPins[7] = {7, 8, 9, 10, 11, 12, 13};
 
 // Digit ON pins for 7-segment display
-const int digitOnPins[2] = {5, 6};
+const int digitOnPins[NUM_LEDS] = {5, 6};
+
+// Dispatch LEDs
+const int NUM_LEDS = 2;
+const int dispatchPins[2] = {44, 45};
 
 
 class MultiplexedDisplay {
@@ -156,17 +160,49 @@ class RotaryEncoder {
     unsigned long lastButtonPress;
 };
 
+class LEDArray {
+  public:
+    static const int MAX_LEDS = 16;
+  
+    LEDArray(const int* pins, int numLeds) {
+      _numLeds = (numLeds <= MAX_LEDS) ? numLeds : MAX_LEDS;
+      for (int i = 0; i < _numLeds; i++) {
+        _pins[i] = pins[i];
+      }
+    }
+  
+    void begin() {
+      for (int i = 0; i < _numLeds; i++) {
+        pinMode(_pins[i], OUTPUT);
+        analogWrite(_pins[i], 0);
+      }
+    }
+  
+    void setLED(int index, int value) {
+      if (index >= 0 && index < _numLeds) {
+        analogWrite(_pins[index], value);
+      }
+    }
+  
+  private:
+    int _pins[MAX_LEDS];
+    int _numLeds;
+};
+
+
 
 MultiplexedDisplay display(2, digitOnPins, segmentPins);
 RotaryEncoder encoder(CLK, DT, SW, maxNunmber);
+LEDArray ledArray(dispatchPins, NUM_LEDS);
 
 void setup() {
 
   pinMode(buttonOnStateLed, OUTPUT);
   digitalWrite(buttonOnStateLed, LOW);
-  
+
   display.begin();
   encoder.begin();
+  ledArray.begin();
   
   Serial.begin(2000000);
 }
@@ -178,6 +214,7 @@ void loop() {
 
   Serial.println(encoderStatus);
 
+  ledArray.setLED(encoderValue % 2, 255);
 
   if (Serial.available()) {
     String command = Serial.readStringUntil('\n');
