@@ -7,13 +7,13 @@ const int buttonOnStateLed = 14;
 const int CLK = 2;
 const int DT = 3;
 const int SW = 4;
-const int maxNunmber = 3;
+const int maxNunmber = 99;
 
 // Segment pins for 7 segments: A, B, C, D, E, F, G
 const int segmentPins[7] = {7, 8, 9, 10, 11, 12, 13};
 
 // Digit ON pins for 7-segment display
-const int digitOnPins[2] = {6, 5};
+const int digitOnPins[2] = {5, 6};
 
 
 class MultiplexedDisplay {
@@ -168,7 +168,7 @@ void setup() {
   display.begin();
   encoder.begin();
   
-  Serial.begin(9600);
+  Serial.begin(2000000);
 }
 
 void loop() { 
@@ -190,6 +190,4 @@ void loop() {
   
   display.updateValue(encoderValue);
   display.refresh();
-  
-  delay(1);
 }
