@@ -12,8 +12,8 @@ logging.basicConfig(level=logging.INFO,
 class AudioPlayer:
 
   def __init__(self,
-               port='/dev/cu.usbserial-12120',
-               baudrate=9600,
+               port='/dev/cu.usbserial-110',
+               baudrate=2000000,
                timeout=1,
                audio_dir=os.path.join(os.getcwd(), "data", "sounds"),
                button_cool_down_s=0.5):
@@ -60,7 +60,6 @@ class AudioPlayer:
     try:
       values = list(map(int, line.decode().split(",")))
     except ValueError:
-      logging.info("Invalid data:", line.decode())
       return
 
     if len(values) < 2:
