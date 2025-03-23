@@ -4,6 +4,49 @@
 
 This project combines Arduino hardware with Python software to create a signal station. Follow the setup instructions below for both components.
 
+## System Design
+
+Multiple devices communicate via various protocols to create an interactive media system.
+
+### Architecture
+
+- **Arduino (User Interface)**  
+  Sends/receives serial command messages.
+
+- **Raspberry Pi (Central Hub)**  
+  - Receives serial messages from the Arduino  
+  - Forwards JSON-RPC commands to an Android device running Kodi  
+  - Hosts a dedicated WiFi network  
+  - Manages Bluetooth connectivity to the speaker box  
+
+- **Android Device (Kodi Media Player)**  
+  Receives JSON-RPC commands from the Raspberry Pi to control video playback.
+
+- **Bluetooth Speaker Box**  
+  Receives audio output from the Raspberry Pi via Bluetooth.
+
+### Communication Flow
+
+```text
++-----------------------+
+|      Arduino UI       |
++-----------+-----------+
+            ^ Serial CTRL
+            | (USB)
+            v
++----------------------------+
+|   Raspberry Pi             |
+|  - WiFi Access Point       |
++-----+------------------+---+
+      | JSON-RPC CTRL    | Audio
+      |  (WIFI)          | (Bluetooth)
+      v                  v
++----------------+   +-----------------------+
+| Android Device |   | Bluetooth Speaker Box |
+|   (Kodi)       |   +-----------------------+
++----------------+
+```
+
 ## Setup Arduino
 
 ## Arduino
