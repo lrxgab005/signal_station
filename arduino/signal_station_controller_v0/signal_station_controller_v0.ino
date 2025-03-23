@@ -11,14 +11,17 @@ const int maxNunmber = 99;
 
 // Segment pins for 7 segments: A, B, C, D, E, F, G
 const int segmentPins[7] = {7, 8, 9, 10, 11, 12, 13};
+const int digitOnPins[2] = {5, 6};
 
 // Digit ON pins for 7-segment display
-const int digitOnPins[NUM_LEDS] = {5, 6};
-
-// Dispatch LEDs
 const int NUM_LEDS = 2;
-const int dispatchPins[2] = {44, 45};
+const int dispatchPins[NUM_LEDS] = {44, 45};
 
+// Display modes
+enum class DisplayMode {
+  SEGMENT,
+  LED
+};
 
 class MultiplexedDisplay {
   public:
@@ -86,6 +89,16 @@ class MultiplexedDisplay {
       currentDigit = (currentDigit + 1) % _numDigits;
     }
 
+    void turnOff() {
+      for (int i = 0; i < _numDigits; i++) {
+        digitalWrite(_digitOnPins[i], HIGH);
+        for (int j = 0; j < 7; j++) {
+          digitalWrite(_segmentPins[j], HIGH);
+        }
+        digitalWrite(_digitOnPins[i], LOW);
+      }
+    }
+
   private:
     /*
         7-Segment Display Configuration:
@@ -144,13 +157,23 @@ class RotaryEncoder {
     }
 
     bool isButtonPressed() {
-      if (digitalRead(SW) == LOW) {
-        if (millis() - lastButtonPress > 50) {
+      static bool lastButtonState = HIGH;
+      bool currentState = digitalRead(SW);
+    
+      if (lastButtonState == HIGH && currentState == LOW) {
+        if (millis() - lastButtonPress > 200) {
+          lastButtonPress = millis();
+          lastButtonState = currentState;
           return true;
-        } 
-        lastButtonPress = millis();
+        }
       }
+    
+      lastButtonState = currentState;
       return false;
+    }
+    
+    void reset() {
+      counter = 0;
     }
 
   private:
@@ -183,23 +206,78 @@ class LEDArray {
         analogWrite(_pins[index], value);
       }
     }
+
+    void setAllLEDs(int value) {
+      for (int i = 0; i < _numLeds; i++) {
+        analogWrite(_pins[i], value);
+      }
+    }
+
+    void turnOff() {
+      setAllLEDs(0);
+    }
   
   private:
     int _pins[MAX_LEDS];
     int _numLeds;
 };
 
+class StateManager {
+  public:
+    StateManager() : 
+      currentMode(DisplayMode::SEGMENT),
+      currentValue(0),
+      currentLedIndex(0) {}
 
+    void begin() {
+      pinMode(buttonOnStateLed, OUTPUT);
+      digitalWrite(buttonOnStateLed, LOW);
+    }
 
+    // Minimal change: update currentLedIndex based on encoder value.
+    void updateValue(int value) {
+      currentValue = value;
+      if (currentMode == DisplayMode::LED) {
+        currentLedIndex = value % NUM_LEDS;
+      }
+    }
+
+    void toggleMode() {
+      if (currentMode == DisplayMode::SEGMENT) {
+        currentMode = DisplayMode::LED;
+        digitalWrite(buttonOnStateLed, HIGH);
+      } else {
+        currentMode = DisplayMode::SEGMENT;
+        digitalWrite(buttonOnStateLed, LOW);
+      }
+    }
+
+    DisplayMode getMode() const {
+      return currentMode;
+    }
+
+    int getValue() const {
+      return currentValue;
+    }
+
+    int getLedIndex() const {
+      return currentLedIndex;
+    }
+
+  private:
+    DisplayMode currentMode;
+    int currentValue;
+    int currentLedIndex;
+};
+
+// Create instances of your classes
 MultiplexedDisplay display(2, digitOnPins, segmentPins);
 RotaryEncoder encoder(CLK, DT, SW, maxNunmber);
 LEDArray ledArray(dispatchPins, NUM_LEDS);
+StateManager stateManager;
 
 void setup() {
-
-  pinMode(buttonOnStateLed, OUTPUT);
-  digitalWrite(buttonOnStateLed, LOW);
-
+  stateManager.begin();
   display.begin();
   encoder.begin();
   ledArray.begin();
@@ -207,15 +285,32 @@ void setup() {
   Serial.begin(2000000);
 }
 
-void loop() { 
+void loop() {
   int encoderValue = encoder.getEncoderValue();
   bool buttonPressed = encoder.isButtonPressed();
-  String encoderStatus = String(encoderValue) + ", " + String(buttonPressed ? 1 : 0);
+  
+  // Update state with encoder value
+  stateManager.updateValue(encoderValue);
+  
+  // Check for button press to toggle mode
+  if (buttonPressed) {
+    stateManager.toggleMode();
+    encoder.reset();
+    Serial.println("Mode toggled: " + String(stateManager.getMode() == DisplayMode::SEGMENT ? "SEGMENT" : "LED"));
+  }
 
-  Serial.println(encoderStatus);
+  // Update display based on current mode and value
+  if (stateManager.getMode() == DisplayMode::SEGMENT) {
+    display.updateValue(stateManager.getValue());
+    display.refresh();
+    ledArray.turnOff();
+  } else {
+    ledArray.turnOff();
+    ledArray.setLED(stateManager.getLedIndex(), 255);
+    display.turnOff();
+  }
 
-  ledArray.setLED(encoderValue % 2, 255);
-
+  // Check for serial commands
   if (Serial.available()) {
     String command = Serial.readStringUntil('\n');
     
@@ -225,6 +320,12 @@ void loop() {
       digitalWrite(buttonOnStateLed, LOW); 
   }
   
-  display.updateValue(encoderValue);
-  display.refresh();
+  // Send current state over serial
+  static unsigned long lastPrint = 0;
+  if (millis() - lastPrint > 500) {
+    lastPrint = millis();
+    String stateInfo = "Mode: " + String(stateManager.getMode() == DisplayMode::SEGMENT ? "SEGMENT" : "LED") +
+                       ", Value: " + String(stateManager.getValue());
+    Serial.println(stateInfo);
+  }
 }
