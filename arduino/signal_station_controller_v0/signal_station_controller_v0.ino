@@ -193,9 +193,11 @@ class RotaryEncoder {
 class LEDArray {
   public:
     static const int MAX_LEDS = 16;
+    static const int DEFAULT_BRIGHTNESS = 80;
   
-    LEDArray(const int* pins, int numLeds) {
+    LEDArray(const int* pins, int numLeds, int brightness = DEFAULT_BRIGHTNESS) {
       _numLeds = (numLeds <= MAX_LEDS) ? numLeds : MAX_LEDS;
+      _brightness = constrain(brightness, 0, 255);
       for (int i = 0; i < _numLeds; i++) {
         _pins[i] = pins[i];
       }
@@ -210,13 +212,14 @@ class LEDArray {
   
     void setLED(int index, int value) {
       if (index >= 0 && index < _numLeds) {
-        analogWrite(_pins[index], value);
+        int scaledValue = (value * _brightness) / 255;
+        analogWrite(_pins[index], scaledValue);
       }
     }
 
     void setAllLEDs(int value) {
       for (int i = 0; i < _numLeds; i++) {
-        analogWrite(_pins[i], value);
+        setLED(i, value);
       }
     }
 
@@ -227,6 +230,7 @@ class LEDArray {
   private:
     int _pins[MAX_LEDS];
     int _numLeds;
+    int _brightness;
 };
 
 class StateManager {
