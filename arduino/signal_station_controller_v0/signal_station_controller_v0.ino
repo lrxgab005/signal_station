@@ -1,21 +1,28 @@
 #include <Arduino.h>
 
-// Button State ON LED
-const int buttonOnStateLed = 14;
+// Dispatch / Archive LED Button
+const int disp_or_arch_button = 53;
+const int disp_or_arch_button_led = A14;
 
-// Rotary Encoder Inputs
-const int CLK = 2;
-const int DT = 3;
-const int SW = 4;
-const int maxNunmber = 99;
+// Rotary 1 Encoder Inputs
+const int CLK1 = 18;
+const int DT1 = 17;
+const int SW1 = 16;
+const int ROT_NR_1 = 8;
+
+// Rotary 2 Encoder Inputs
+const int CLK2 = 2;
+const int DT2 = 3;
+const int SW2 = 4;
+const int ROT_NR_2 = 3;
 
 // Segment pins for 7 segments: A, B, C, D, E, F, G
-const int segmentPins[7] = {7, 8, 9, 10, 11, 12, 13};
-const int digitOnPins[2] = {5, 6};
+const int segmentPins[7] = {35, 37, 39, 41, 43, 45, 47};
+const int digitOnPins[2] = {31, 33};
 
 // Digit ON pins for 7-segment display
-const int NUM_LEDS = 2;
-const int dispatchPins[NUM_LEDS] = {44, 45};
+const int NUM_LEDS = 8;
+const int dispatchPins[NUM_LEDS] = {12, 11, 10, 9, 8, 7, 6, 5};
 
 // Display modes
 enum class DisplayMode {
@@ -230,8 +237,8 @@ class StateManager {
       currentLedIndex(0) {}
 
     void begin() {
-      pinMode(buttonOnStateLed, OUTPUT);
-      digitalWrite(buttonOnStateLed, LOW);
+      pinMode(disp_or_arch_button_led, OUTPUT);
+      digitalWrite(disp_or_arch_button_led, HIGH);
     }
 
     // Minimal change: update currentLedIndex based on encoder value.
@@ -245,10 +252,10 @@ class StateManager {
     void toggleMode() {
       if (currentMode == DisplayMode::SEGMENT) {
         currentMode = DisplayMode::LED;
-        digitalWrite(buttonOnStateLed, HIGH);
+        digitalWrite(disp_or_arch_button_led, HIGH);
       } else {
         currentMode = DisplayMode::SEGMENT;
-        digitalWrite(buttonOnStateLed, LOW);
+        digitalWrite(disp_or_arch_button_led, LOW);
       }
     }
 
@@ -270,9 +277,8 @@ class StateManager {
     int currentLedIndex;
 };
 
-// Create instances of your classes
 MultiplexedDisplay display(2, digitOnPins, segmentPins);
-RotaryEncoder encoder(CLK, DT, SW, maxNunmber);
+RotaryEncoder encoder(CLK1, DT1, SW1, ROT_NR_1);
 LEDArray ledArray(dispatchPins, NUM_LEDS);
 StateManager stateManager;
 
@@ -315,9 +321,9 @@ void loop() {
     String command = Serial.readStringUntil('\n');
     
     if (command == "ON")
-      digitalWrite(buttonOnStateLed, HIGH);
+      digitalWrite(disp_or_arch_button_led, HIGH);
     else if (command == "OFF")
-      digitalWrite(buttonOnStateLed, LOW); 
+      digitalWrite(disp_or_arch_button_led, LOW); 
   }
   
   // Send current state over serial
