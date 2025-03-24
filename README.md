@@ -4,7 +4,7 @@
 
 ## Overview
 
-This project combines Arduino hardware with Python software to create a signal station. Follow the setup instructions below for both components.
+This project combines Arduino hardware with Python software to create an interactive audio visual experience with the signal station. 
 
 ## System Design
 
