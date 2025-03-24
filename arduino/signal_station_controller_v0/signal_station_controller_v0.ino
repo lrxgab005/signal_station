@@ -9,7 +9,7 @@ const int disp_or_arch_button_led = A14;
 const int CLK1 = 18;
 const int DT1 = 17;
 const int SW1 = 16;
-const int ROT_NR_1 = 8;
+const int ROT_NR_1 = 92;
 
 // Rotary 2 Encoder Inputs
 const int CLK2 = 2;
@@ -142,49 +142,56 @@ public:
 
 
 class RotaryEncoder {
-public:
-  RotaryEncoder(int clk, int dt, int sw, int maxNum)
-    : CLK(clk), DT(dt), SW(sw), maxNumber(maxNum), counter(0), 
-      lastStateCLK(HIGH), lastButtonPress(0) {}
-
-  void begin() {
-    pinMode(CLK, INPUT);
-    pinMode(DT, INPUT);
-    pinMode(SW, INPUT_PULLUP);
-    lastStateCLK = digitalRead(CLK);
-  }
-
-  int getEncoderValue() {
-    int currentStateCLK = digitalRead(CLK);
-    if (currentStateCLK != lastStateCLK && currentStateCLK == HIGH) {
-      counter += (digitalRead(DT) != currentStateCLK) ? 1 : -1;
-      counter = (counter < 0) ? (counter + maxNumber) : (counter % maxNumber);
+  public:
+    RotaryEncoder(int clk, int dt, int sw, int maxNum)
+      : CLK(clk), DT(dt), SW(sw), maxNumber(maxNum), counter(0),
+        lastStateCLK(HIGH), lastButtonPress(0) {}
+  
+    void begin() {
+      pinMode(CLK, INPUT);
+      pinMode(DT, INPUT);
+      pinMode(SW, INPUT_PULLUP);
+      lastStateCLK = digitalRead(CLK);
     }
-    lastStateCLK = currentStateCLK;
-    return counter;
-  }
-
-  bool isButtonPressed() {
-    static bool lastButtonState = HIGH;
-    bool currentState = digitalRead(SW);
-
-    if (lastButtonState == HIGH && currentState == LOW) {
-      if (millis() - lastButtonPress > 200) {
-        lastButtonPress = millis();
-        lastButtonState = currentState;
-        return true;
+  
+    int getEncoderValue() {
+      int currentStateCLK = digitalRead(CLK);
+      if (currentStateCLK != lastStateCLK && currentStateCLK == HIGH) {
+        counter += (digitalRead(DT) != currentStateCLK) ? 1 : -1;
+        counter = (counter < 0) ? (counter + maxNumber) : (counter % maxNumber);
       }
+      lastStateCLK = currentStateCLK;
+      return counter;
     }
-    lastButtonState = currentState;
-    return false;
-  }
+  
+    bool isButtonPressed() {
+      static bool lastButtonState = HIGH;
+      bool currentState = digitalRead(SW);
+      if (lastButtonState == HIGH && currentState == LOW) {
+        if (millis() - lastButtonPress > 200) {
+          lastButtonPress = millis();
+          lastButtonState = currentState;
+          return true;
+        }
+      }
+      lastButtonState = currentState;
+      return false;
+    }
 
-private:
-  int CLK, DT, SW, maxNumber;
-  int counter;
-  int lastStateCLK;
-  unsigned long lastButtonPress;
-};
+    void setMaxNumber(int maxNum) {
+      maxNumber = maxNum;
+    }
+    
+    void resetCounter() {
+      counter = 0;
+    }
+  
+  private:
+    int CLK, DT, SW, maxNumber;
+    int counter;
+    int lastStateCLK;
+    unsigned long lastButtonPress;
+  };
 
 class LEDArray {
 public:
@@ -230,53 +237,40 @@ private:
 };
 
 class StateManager {
-public:
-  StateManager() : currentMode(DisplayMode::DISPATCH), currentValue(0), currentLedIndex(0) {}
-
-  void begin() {
-    pinMode(disp_or_arch_button_led, OUTPUT);
-    digitalWrite(disp_or_arch_button_led, HIGH);
-  }
-
-  void updateValue(int value) {
-    currentValue = value;
-    if (currentMode == DisplayMode::DISPATCH) {
-      currentLedIndex = value % NUM_LEDS;
+  public:
+    StateManager(RotaryEncoder &encoderRef)
+      : currentMode(DisplayMode::DISPATCH), _encoder(encoderRef) {}
+  
+    void begin() {}
+  
+    void toggleMode() {
+      if (currentMode == DisplayMode::DISPATCH) {
+        currentMode = DisplayMode::ARCHIVE;
+        _encoder.setMaxNumber(ROT_NR_1);
+      } else {
+        currentMode = DisplayMode::DISPATCH;
+        _encoder.setMaxNumber(NUM_LEDS);
+      }
+      _encoder.resetCounter();
     }
-  }
-
-  void toggleMode() {
-    if (currentMode == DisplayMode::DISPATCH) {
-      currentMode = DisplayMode::ARCHIVE;
-      digitalWrite(disp_or_arch_button_led, HIGH);
-    } else {
-      currentMode = DisplayMode::DISPATCH;
-      digitalWrite(disp_or_arch_button_led, LOW);
+  
+    DisplayMode getMode() const {
+      return currentMode;
     }
-  }
-
-  DisplayMode getMode() const {
-    return currentMode;
-  }
-
-  int getValue() const {
-    return currentValue;
-  }
-
-  int getLedIndex() const {
-    return currentLedIndex;
-  }
-
-private:
-  DisplayMode currentMode;
-  int currentValue;
-  int currentLedIndex;
+  
+    int getIndex() const {
+      return _encoder.getEncoderValue();
+    }
+  
+  private:
+    DisplayMode currentMode;
+    RotaryEncoder &_encoder;
 };
 
 MultiplexedDisplay display(2, digitOnPins, segmentPins);
 RotaryEncoder encoder(CLK1, DT1, SW1, ROT_NR_1);
 LEDArray ledArray(dispatchPins, NUM_LEDS);
-StateManager stateManager;
+StateManager stateManager(encoder);
 
 void setup() {
   stateManager.begin();
@@ -284,12 +278,13 @@ void setup() {
   encoder.begin();
   ledArray.begin();
   pinMode(disp_or_arch_button, INPUT_PULLUP);
-  Serial.begin(2000000);
+  pinMode(disp_or_arch_button_led, OUTPUT);
+
+  Serial.begin(9600);
 }
 
 void loop() {
   int encoderValue = encoder.getEncoderValue();
-  stateManager.updateValue(encoderValue);
 
   // Read current button state
   bool currentDispButtonState = digitalRead(disp_or_arch_button);
@@ -302,20 +297,20 @@ void loop() {
 
   // Rotary encoder button sends one serial message when pressed
   if (encoder.isButtonPressed()) {
-    String msg = (stateManager.getMode() == DisplayMode::DISPATCH ? "dispatch, " : "archive, ") + String(stateManager.getValue());
+    String msg = (stateManager.getMode() == DisplayMode::DISPATCH ? "dispatch, " : "archive, ") + String(stateManager.getIndex());
     Serial.println(msg);
   }
 
   if (stateManager.getMode() == DisplayMode::DISPATCH) {
     ledArray.turnOff();
-    ledArray.setLED(stateManager.getLedIndex(), 255);
+    ledArray.setLED(stateManager.getIndex(), 255);
     display.turnOff();
   } else {
-    display.updateValue(stateManager.getValue());
+    display.updateValue(stateManager.getIndex());
     display.refresh();
     ledArray.turnOff();
+  }
 
-  // Check for serial commands
   if (Serial.available()) {
     String command = Serial.readStringUntil('\n');
     
@@ -323,6 +318,5 @@ void loop() {
       digitalWrite(disp_or_arch_button_led, HIGH);
     else if (command == "OFF")
       digitalWrite(disp_or_arch_button_led, LOW); 
-  }
   }
 }

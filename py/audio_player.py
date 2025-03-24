@@ -33,37 +33,47 @@ class AudioPlayer:
 
     self.ser = serial.Serial(port, baudrate=baudrate, timeout=timeout)
     self.playing = False
-    self.track_number = 0
     self.audio_dir = audio_dir
     pygame.mixer.init()
-    self.track_paths = self.load_tracks()
+    self.track_paths = self.load_tracks(
+    )  # dict with keys 'dispatch' and 'archive'
     self.button_cool_down_s = button_cool_down_s
     self.last_button_press = time.time()
-    self.button_state = 0
+
+    self.send_serial("ON")
 
   def load_tracks(self):
-    tracks = []
-    for track in os.listdir(self.audio_dir):
-      tracks.append(os.path.join(self.audio_dir, track))
+    tracks = {"dispatch": [], "archive": []}
+    for folder in tracks.keys():
+      folder_path = os.path.join(self.audio_dir, folder)
+      if not os.path.isdir(folder_path):
+        logging.warning(f"Directory not found: {folder_path}")
+        continue
+      for track in sorted(os.listdir(folder_path)):
+        track_path = os.path.join(folder_path, track)
+        tracks[folder].append(track_path)
+      logging.info(f"Loaded {len(tracks[folder])} tracks from {folder}")
     return tracks
 
   def send_serial(self, message: str):
     self.ser.write((message + "\n").encode())
 
-  def play_track(self, track_number: int):
-    if track_number >= len(self.track_paths):
-      logging.error(f"Invalid track number: {track_number}")
+  def play_track(self, folder: str, track_number: int):
+    if folder not in self.track_paths:
+      logging.error(f"Invalid folder: {folder}")
+      return
+    if track_number >= len(self.track_paths[folder]):
+      logging.error(f"Invalid track number {track_number} for folder {folder}")
       return
 
     self.playing = True
     self.send_serial("ON")
-    logging.info(
-        f"Playing track: {track_number} {self.track_paths[track_number]}")
-    pygame.mixer.music.load(self.track_paths[track_number])
+    track_path = self.track_paths[folder][track_number]
+    logging.info(f"Playing track: {folder}/{track_number} {track_path}")
+    pygame.mixer.music.load(track_path)
     pygame.mixer.music.play()
     while pygame.mixer.music.get_busy():
       time.sleep(0.1)
-
     self.send_serial("OFF")
     self.playing = False
 
@@ -71,31 +81,29 @@ class AudioPlayer:
     if not line:
       return
     try:
-      values = list(map(int, line.decode().split(",")))
-    except ValueError:
+      decoded_line = line.decode().strip()
+      parts = decoded_line.split(",")
+      if len(parts) != 2:
+        logging.error(f"Invalid command format: {decoded_line}")
+        return
+      folder = parts[0].strip().lower()
+      track_number = int(parts[1].strip())
+    except Exception as e:
+      logging.error(f"Error processing line '{line}': {e}")
       return
 
-    if len(values) < 2:
-      logging.error(f"Invalid data. Values len < 2: {values}")
-      return
+    logging.info(
+        f"Received command: folder={folder}, track_number={track_number}")
+    self.check_button(folder, track_number)
 
-    track_number, button_state = values[:2]
-    if track_number != self.track_number:
-      self.track_number = track_number
-      logging.info(f"Track number: {self.track_number}")
-
-    self.check_button(self.track_number, button_state)
-
-  def check_button(self, track_number: int, button_state: int):
-    self.button_state = button_state if button_state else self.button_state
+  def check_button(self, folder: str, track_number: int):
     if time.time() - self.last_button_press < self.button_cool_down_s:
       return
     self.last_button_press = time.time()
-    if self.button_state and not self.playing:
+    if not self.playing:
       threading.Thread(target=self.play_track,
-                       args=(track_number, ),
+                       args=(folder, track_number),
                        daemon=True).start()
-    self.button_state = 0
 
   def run(self):
     try:
@@ -127,7 +135,8 @@ def main():
   parser.add_argument("--audio_dir",
                       type=str,
                       default=os.path.join(os.getcwd(), "data", "sounds"),
-                      help="Directory containing audio tracks")
+                      help="Directory containing audio tracks "
+                      "with subfolders 'dispatch' and 'archive'")
   parser.add_argument("--button_cool_down_s",
                       type=float,
                       default=0.5,
