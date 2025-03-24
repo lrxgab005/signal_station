@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
-// Dispatch / Archive LED Button
+// Dispatch / Archive Button & LED
+static bool lastDispButtonState = HIGH;
 const int disp_or_arch_button = 53;
 const int disp_or_arch_button_led = A14;
 
@@ -20,91 +21,91 @@ const int ROT_NR_2 = 3;
 const int segmentPins[7] = {35, 37, 39, 41, 43, 45, 47};
 const int digitOnPins[2] = {31, 33};
 
-// Digit ON pins for 7-segment display
+// Dispatch LED Array pins 
 const int NUM_LEDS = 8;
 const int dispatchPins[NUM_LEDS] = {12, 11, 10, 9, 8, 7, 6, 5};
 
-// Display modes
+// Mode names: dispatch (for 7-seg) and archive (for LED)
 enum class DisplayMode {
-  SEGMENT,
-  LED
+  DISPATCH,
+  ARCHIVE
 };
 
 class MultiplexedDisplay {
-  public:
-    MultiplexedDisplay(int numDigits, const int* digitOnPins, const int segmentPins[7]) {
-      _numDigits = numDigits;
-      _digitOnPins = new int[_numDigits];
-      for (int i = 0; i < _numDigits; i++) {
-        _digitOnPins[i] = digitOnPins[i];
+public:
+  MultiplexedDisplay(int numDigits, const int* digitOnPins, const int segmentPins[7]) {
+    _numDigits = numDigits;
+    _digitOnPins = new int[_numDigits];
+    for (int i = 0; i < _numDigits; i++) {
+      _digitOnPins[i] = digitOnPins[i];
+    }
+    for (int i = 0; i < 7; i++) {
+      _segmentPins[i] = segmentPins[i];
+    }
+    currentValue = 0;
+    currentDigit = 0;
+    // Precompute divisors for digit extraction: divisor[i] = 10^(numDigits-1-i)
+    _divisors = new int[_numDigits];
+    for (int i = 0; i < _numDigits; i++) {
+      int power = 1;
+      for (int j = 0; j < (_numDigits - 1 - i); j++) {
+        power *= 10;
       }
-      for (int i = 0; i < 7; i++) {
-        _segmentPins[i] = segmentPins[i];
-      }
-      currentValue = 0;
-      currentDigit = 0;
-      // Precompute divisors for digit extraction: divisor[i] = 10^(numDigits-1-i)
-      _divisors = new int[_numDigits];
-      for (int i = 0; i < _numDigits; i++) {
-        int power = 1;
-        for (int j = 0; j < (_numDigits - 1 - i); j++) {
-          power *= 10;
-        }
-        _divisors[i] = power;
-      }
+      _divisors[i] = power;
+    }
+  }
+
+  ~MultiplexedDisplay() {
+    delete [] _digitOnPins;
+    delete [] _divisors;
+  }
+
+  void begin() {
+    for (int i = 0; i < _numDigits; i++) {
+      pinMode(_digitOnPins[i], OUTPUT);
+      digitalWrite(_digitOnPins[i], LOW);
+    }
+    for (int i = 0; i < 7; i++) {
+      pinMode(_segmentPins[i], OUTPUT);
+      digitalWrite(_segmentPins[i], HIGH);
+    }
+  }
+
+  void updateValue(int value) {
+    currentValue = (value < 0) ? -value : value;
+  }
+
+  void refresh() {
+    // Extract digit value for the current digit position
+    int divisor = _divisors[currentDigit];
+    int digitVal = (currentValue / divisor) % 10;
+
+    // Disable all digits to prevent ghosting
+    for (int i = 0; i < _numDigits; i++) {
+      digitalWrite(_digitOnPins[i], LOW);
     }
 
-    ~MultiplexedDisplay() {
-      delete [] _digitOnPins;
-      delete [] _divisors;
+    // Set segment outputs based on digit pattern (common anode: LOW turns segment on)
+    byte pattern = _digitPatterns[digitVal];
+    for (int i = 0; i < 7; i++) {
+      bool segOn = pattern & (1 << i);
+      digitalWrite(_segmentPins[i], segOn ? LOW : HIGH);
     }
 
-    void begin() {
-      for (int i = 0; i < _numDigits; i++) {
-        pinMode(_digitOnPins[i], OUTPUT);
-        digitalWrite(_digitOnPins[i], LOW);
+    // Enable current digit
+    digitalWrite(_digitOnPins[currentDigit], HIGH);
+    currentDigit = (currentDigit + 1) % _numDigits;
+  }
+
+  void turnOff() {
+    for (int i = 0; i < _numDigits; i++) {
+      digitalWrite(_digitOnPins[i], HIGH);
+      for (int j = 0; j < 7; j++) {
+        digitalWrite(_segmentPins[j], HIGH);
       }
-      for (int i = 0; i < 7; i++) {
-        pinMode(_segmentPins[i], OUTPUT);
-        digitalWrite(_segmentPins[i], HIGH);
-      }
+      digitalWrite(_digitOnPins[i], LOW);
     }
-
-    void updateValue(int value) {
-      currentValue = (value < 0) ? -value : value;
-    }
-
-    void refresh() {
-      // Extract digit value for the current digit position
-      int divisor = _divisors[currentDigit];
-      int digitVal = (currentValue / divisor) % 10;
-
-      // Disable all digits to prevent ghosting
-      for (int i = 0; i < _numDigits; i++) {
-        digitalWrite(_digitOnPins[i], LOW);
-      }
-
-      // Set segment outputs based on digit pattern (common anode: LOW turns segment on)
-      byte pattern = _digitPatterns[digitVal];
-      for (int i = 0; i < 7; i++) {
-        bool segOn = pattern & (1 << i);
-        digitalWrite(_segmentPins[i], segOn ? LOW : HIGH);
-      }
-
-      // Enable current digit
-      digitalWrite(_digitOnPins[currentDigit], HIGH);
-      currentDigit = (currentDigit + 1) % _numDigits;
-    }
-
-    void turnOff() {
-      for (int i = 0; i < _numDigits; i++) {
-        digitalWrite(_digitOnPins[i], HIGH);
-        for (int j = 0; j < 7; j++) {
-          digitalWrite(_segmentPins[j], HIGH);
-        }
-        digitalWrite(_digitOnPins[i], LOW);
-      }
-    }
+  }
 
   private:
     /*
@@ -141,144 +142,135 @@ class MultiplexedDisplay {
 
 
 class RotaryEncoder {
-  public:
-    RotaryEncoder(int clk, int dt, int sw, int maxNum)
-      : CLK(clk), DT(dt), SW(sw), maxNumber(maxNum), counter(0),
-        lastStateCLK(HIGH), lastButtonPress(0) {}
+public:
+  RotaryEncoder(int clk, int dt, int sw, int maxNum)
+    : CLK(clk), DT(dt), SW(sw), maxNumber(maxNum), counter(0), 
+      lastStateCLK(HIGH), lastButtonPress(0) {}
 
-    void begin() {
-      pinMode(CLK, INPUT);
-      pinMode(DT, INPUT);
-      pinMode(SW, INPUT_PULLUP);
-      lastStateCLK = digitalRead(CLK);
+  void begin() {
+    pinMode(CLK, INPUT);
+    pinMode(DT, INPUT);
+    pinMode(SW, INPUT_PULLUP);
+    lastStateCLK = digitalRead(CLK);
+  }
+
+  int getEncoderValue() {
+    int currentStateCLK = digitalRead(CLK);
+    if (currentStateCLK != lastStateCLK && currentStateCLK == HIGH) {
+      counter += (digitalRead(DT) != currentStateCLK) ? 1 : -1;
+      counter = (counter < 0) ? (counter + maxNumber) : (counter % maxNumber);
     }
+    lastStateCLK = currentStateCLK;
+    return counter;
+  }
 
-    int getEncoderValue() {
-      int currentStateCLK = digitalRead(CLK);
-      if (currentStateCLK != lastStateCLK && currentStateCLK == HIGH) {
-        counter += (digitalRead(DT) != currentStateCLK) ? 1 : -1;
-        counter = (counter < 0) ? (counter + maxNumber) : (counter % maxNumber);
+  bool isButtonPressed() {
+    static bool lastButtonState = HIGH;
+    bool currentState = digitalRead(SW);
+
+    if (lastButtonState == HIGH && currentState == LOW) {
+      if (millis() - lastButtonPress > 200) {
+        lastButtonPress = millis();
+        lastButtonState = currentState;
+        return true;
       }
-      lastStateCLK = currentStateCLK;
-      return counter;
     }
+    lastButtonState = currentState;
+    return false;
+  }
 
-    bool isButtonPressed() {
-      static bool lastButtonState = HIGH;
-      bool currentState = digitalRead(SW);
-    
-      if (lastButtonState == HIGH && currentState == LOW) {
-        if (millis() - lastButtonPress > 200) {
-          lastButtonPress = millis();
-          lastButtonState = currentState;
-          return true;
-        }
-      }
-    
-      lastButtonState = currentState;
-      return false;
-    }
-    
-    void reset() {
-      counter = 0;
-    }
-
-  private:
-    int CLK, DT, SW, maxNumber;
-    int counter;
-    int lastStateCLK;
-    unsigned long lastButtonPress;
+private:
+  int CLK, DT, SW, maxNumber;
+  int counter;
+  int lastStateCLK;
+  unsigned long lastButtonPress;
 };
 
 class LEDArray {
-  public:
-    static const int MAX_LEDS = 16;
-    static const int DEFAULT_BRIGHTNESS = 80;
-  
-    LEDArray(const int* pins, int numLeds, int brightness = DEFAULT_BRIGHTNESS) {
-      _numLeds = (numLeds <= MAX_LEDS) ? numLeds : MAX_LEDS;
-      _brightness = constrain(brightness, 0, 255);
-      for (int i = 0; i < _numLeds; i++) {
-        _pins[i] = pins[i];
-      }
-    }
-  
-    void begin() {
-      for (int i = 0; i < _numLeds; i++) {
-        pinMode(_pins[i], OUTPUT);
-        analogWrite(_pins[i], 0);
-      }
-    }
-  
-    void setLED(int index, int value) {
-      if (index >= 0 && index < _numLeds) {
-        int scaledValue = (value * _brightness) / 255;
-        analogWrite(_pins[index], scaledValue);
-      }
-    }
+public:
+  static const int MAX_LEDS = 16;
+  static const int DEFAULT_BRIGHTNESS = 80;
 
-    void setAllLEDs(int value) {
-      for (int i = 0; i < _numLeds; i++) {
-        setLED(i, value);
-      }
+  LEDArray(const int* pins, int numLeds, int brightness = DEFAULT_BRIGHTNESS) {
+    _numLeds = (numLeds <= MAX_LEDS) ? numLeds : MAX_LEDS;
+    _brightness = constrain(brightness, 0, 255);
+    for (int i = 0; i < _numLeds; i++) {
+      _pins[i] = pins[i];
     }
+  }
 
-    void turnOff() {
-      setAllLEDs(0);
+  void begin() {
+    for (int i = 0; i < _numLeds; i++) {
+      pinMode(_pins[i], OUTPUT);
+      analogWrite(_pins[i], 0);
     }
-  
-  private:
-    int _pins[MAX_LEDS];
-    int _numLeds;
-    int _brightness;
+  }
+
+  void setLED(int index, int value) {
+    if (index >= 0 && index < _numLeds) {
+      int scaledValue = (value * _brightness) / 255;
+      analogWrite(_pins[index], scaledValue);
+    }
+  }
+
+  void setAllLEDs(int value) {
+    for (int i = 0; i < _numLeds; i++) {
+      setLED(i, value);
+    }
+  }
+
+  void turnOff() {
+    setAllLEDs(0);
+  }
+
+private:
+  int _pins[MAX_LEDS];
+  int _numLeds;
+  int _brightness;
 };
 
 class StateManager {
-  public:
-    StateManager() : 
-      currentMode(DisplayMode::SEGMENT),
-      currentValue(0),
-      currentLedIndex(0) {}
+public:
+  StateManager() : currentMode(DisplayMode::DISPATCH), currentValue(0), currentLedIndex(0) {}
 
-    void begin() {
-      pinMode(disp_or_arch_button_led, OUTPUT);
+  void begin() {
+    pinMode(disp_or_arch_button_led, OUTPUT);
+    digitalWrite(disp_or_arch_button_led, HIGH);
+  }
+
+  void updateValue(int value) {
+    currentValue = value;
+    if (currentMode == DisplayMode::DISPATCH) {
+      currentLedIndex = value % NUM_LEDS;
+    }
+  }
+
+  void toggleMode() {
+    if (currentMode == DisplayMode::DISPATCH) {
+      currentMode = DisplayMode::ARCHIVE;
       digitalWrite(disp_or_arch_button_led, HIGH);
+    } else {
+      currentMode = DisplayMode::DISPATCH;
+      digitalWrite(disp_or_arch_button_led, LOW);
     }
+  }
 
-    // Minimal change: update currentLedIndex based on encoder value.
-    void updateValue(int value) {
-      currentValue = value;
-      if (currentMode == DisplayMode::LED) {
-        currentLedIndex = value % NUM_LEDS;
-      }
-    }
+  DisplayMode getMode() const {
+    return currentMode;
+  }
 
-    void toggleMode() {
-      if (currentMode == DisplayMode::SEGMENT) {
-        currentMode = DisplayMode::LED;
-        digitalWrite(disp_or_arch_button_led, HIGH);
-      } else {
-        currentMode = DisplayMode::SEGMENT;
-        digitalWrite(disp_or_arch_button_led, LOW);
-      }
-    }
+  int getValue() const {
+    return currentValue;
+  }
 
-    DisplayMode getMode() const {
-      return currentMode;
-    }
+  int getLedIndex() const {
+    return currentLedIndex;
+  }
 
-    int getValue() const {
-      return currentValue;
-    }
-
-    int getLedIndex() const {
-      return currentLedIndex;
-    }
-
-  private:
-    DisplayMode currentMode;
-    int currentValue;
-    int currentLedIndex;
+private:
+  DisplayMode currentMode;
+  int currentValue;
+  int currentLedIndex;
 };
 
 MultiplexedDisplay display(2, digitOnPins, segmentPins);
@@ -291,34 +283,37 @@ void setup() {
   display.begin();
   encoder.begin();
   ledArray.begin();
-  
+  pinMode(disp_or_arch_button, INPUT_PULLUP);
   Serial.begin(2000000);
 }
 
 void loop() {
   int encoderValue = encoder.getEncoderValue();
-  bool buttonPressed = encoder.isButtonPressed();
-  
-  // Update state with encoder value
   stateManager.updateValue(encoderValue);
-  
-  // Check for button press to toggle mode
-  if (buttonPressed) {
+
+  // Read current button state
+  bool currentDispButtonState = digitalRead(disp_or_arch_button);
+
+  if (lastDispButtonState == HIGH && currentDispButtonState == LOW) {
     stateManager.toggleMode();
-    encoder.reset();
-    Serial.println("Mode toggled: " + String(stateManager.getMode() == DisplayMode::SEGMENT ? "SEGMENT" : "LED"));
+    delay(50);
+  }
+  lastDispButtonState = currentDispButtonState;
+
+  // Rotary encoder button sends one serial message when pressed
+  if (encoder.isButtonPressed()) {
+    String msg = (stateManager.getMode() == DisplayMode::DISPATCH ? "dispatch, " : "archive, ") + String(stateManager.getValue());
+    Serial.println(msg);
   }
 
-  // Update display based on current mode and value
-  if (stateManager.getMode() == DisplayMode::SEGMENT) {
-    display.updateValue(stateManager.getValue());
-    display.refresh();
-    ledArray.turnOff();
-  } else {
+  if (stateManager.getMode() == DisplayMode::DISPATCH) {
     ledArray.turnOff();
     ledArray.setLED(stateManager.getLedIndex(), 255);
     display.turnOff();
-  }
+  } else {
+    display.updateValue(stateManager.getValue());
+    display.refresh();
+    ledArray.turnOff();
 
   // Check for serial commands
   if (Serial.available()) {
@@ -329,13 +324,5 @@ void loop() {
     else if (command == "OFF")
       digitalWrite(disp_or_arch_button_led, LOW); 
   }
-  
-  // Send current state over serial
-  static unsigned long lastPrint = 0;
-  if (millis() - lastPrint > 500) {
-    lastPrint = millis();
-    String stateInfo = "Mode: " + String(stateManager.getMode() == DisplayMode::SEGMENT ? "SEGMENT" : "LED") +
-                       ", Value: " + String(stateManager.getValue());
-    Serial.println(stateInfo);
   }
 }
