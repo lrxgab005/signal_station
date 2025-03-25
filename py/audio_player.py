@@ -39,6 +39,7 @@ class AudioPlayer:
     )  # dict with keys 'dispatch' and 'archive'
     self.button_cool_down_s = button_cool_down_s
     self.last_button_press = time.time()
+    self.stop_requested = False
 
     self.send_serial("ON")
 
@@ -73,13 +74,15 @@ class AudioPlayer:
       return
 
     self.playing = True
+    self.stop_requested = False
     self.send_serial("ON")
     track_path = self.track_paths[folder][track_number]
     logging.info(f"Playing track: {folder}/{track_number} {track_path}")
     pygame.mixer.music.load(track_path)
     pygame.mixer.music.play()
-    while pygame.mixer.music.get_busy():
+    while pygame.mixer.music.get_busy() and not self.stop_requested:
       time.sleep(0.1)
+    pygame.mixer.music.stop()
     self.send_serial("OFF")
     self.playing = False
 
@@ -100,6 +103,9 @@ class AudioPlayer:
 
     logging.info(
         f"Received command: folder={folder}, track_number={track_number}")
+    if self.playing:
+      self.stop_requested = True
+      time.sleep(0.2)  # Give time for current playback to stop
     self.check_button(folder, track_number)
 
   def check_button(self, folder: str, track_number: int):
