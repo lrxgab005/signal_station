@@ -9,7 +9,6 @@ const int disp_or_arch_button_led = A14;
 const int CLK1 = 18;
 const int DT1 = 17;
 const int SW1 = 16;
-const int ROT_NR_1 = 92;
 
 // Rotary 2 Encoder Inputs
 const int CLK2 = 2;
@@ -21,9 +20,12 @@ const int ROT_NR_2 = 3;
 const int segmentPins[7] = {35, 37, 39, 41, 43, 45, 47};
 const int digitOnPins[2] = {31, 33};
 
+// Interface constants
+const int NR_ARCHIVE = 82;
+const int NR_DISPATCHES = 8;
+
 // Dispatch LED Array pins 
-const int NUM_LEDS = 8;
-const int dispatchPins[NUM_LEDS] = {12, 11, 10, 9, 8, 7, 6, 5};
+const int dispatchPins[NR_DISPATCHES] = {12, 11, 10, 9, 8, 7, 6, 5};
 
 // Mode names: dispatch (for 7-seg) and archive (for LED)
 enum class DisplayMode {
@@ -107,91 +109,91 @@ public:
     }
   }
 
-  private:
-    /*
-        7-Segment Display Configuration:
-            A
-           ---
-        F |   | B
-          | G |
-           ---
-        E |   | C
-          |   |
-           ---
-            D
-    */
-    const byte _digitPatterns[10] = {
-      0b00111111,  // 0: A B C D E F on
-      0b00000110,  // 1: B C on
-      0b01011011,  // 2: A B D E G on
-      0b01001111,  // 3: A B C D G on
-      0b01100110,  // 4: B C F G on
-      0b01101101,  // 5: A C D F G on
-      0b01111101,  // 6: A C D E F G on
-      0b00000111,  // 7: A B C on
-      0b01111111,  // 8: all segments on
-      0b01101111   // 9: A B C D F G on
-    };
-    int* _digitOnPins;      // Dynamic array for digit control pins
-    int _segmentPins[7];     // Fixed array for segment control pins
-    int _numDigits;          // Number of digits in the display
-    int* _divisors;          // Precomputed divisors for digit extraction
-    int currentValue;        // Absolute value to be displayed
-    int currentDigit;        // Current digit being refreshed (0-indexed)
+private:
+  /*
+      7-Segment Display Configuration:
+          A
+          ---
+      F |   | B
+        | G |
+          ---
+      E |   | C
+        |   |
+          ---
+          D
+  */
+  const byte _digitPatterns[10] = {
+    0b00111111,  // 0: A B C D E F on
+    0b00000110,  // 1: B C on
+    0b01011011,  // 2: A B D E G on
+    0b01001111,  // 3: A B C D G on
+    0b01100110,  // 4: B C F G on
+    0b01101101,  // 5: A C D F G on
+    0b01111101,  // 6: A C D E F G on
+    0b00000111,  // 7: A B C on
+    0b01111111,  // 8: all segments on
+    0b01101111   // 9: A B C D F G on
+  };
+  int* _digitOnPins;      // Dynamic array for digit control pins
+  int _segmentPins[7];     // Fixed array for segment control pins
+  int _numDigits;          // Number of digits in the display
+  int* _divisors;          // Precomputed divisors for digit extraction
+  int currentValue;        // Absolute value to be displayed
+  int currentDigit;        // Current digit being refreshed (0-indexed)
 };
 
 
 class RotaryEncoder {
-  public:
-    RotaryEncoder(int clk, int dt, int sw, int maxNum)
-      : CLK(clk), DT(dt), SW(sw), maxNumber(maxNum), counter(0),
-        lastStateCLK(HIGH), lastButtonPress(0) {}
-  
-    void begin() {
-      pinMode(CLK, INPUT);
-      pinMode(DT, INPUT);
-      pinMode(SW, INPUT_PULLUP);
-      lastStateCLK = digitalRead(CLK);
-    }
-  
-    int getEncoderValue() {
-      int currentStateCLK = digitalRead(CLK);
-      if (currentStateCLK != lastStateCLK && currentStateCLK == HIGH) {
-        counter += (digitalRead(DT) != currentStateCLK) ? 1 : -1;
-        counter = (counter < 0) ? (counter + maxNumber) : (counter % maxNumber);
-      }
-      lastStateCLK = currentStateCLK;
-      return counter;
-    }
-  
-    bool isButtonPressed() {
-      static bool lastButtonState = HIGH;
-      bool currentState = digitalRead(SW);
-      if (lastButtonState == HIGH && currentState == LOW) {
-        if (millis() - lastButtonPress > 200) {
-          lastButtonPress = millis();
-          lastButtonState = currentState;
-          return true;
-        }
-      }
-      lastButtonState = currentState;
-      return false;
-    }
+public:
+  RotaryEncoder(int clk, int dt, int sw, int maxNum)
+    : CLK(clk), DT(dt), SW(sw), maxNumber(maxNum), counter(0),
+      lastStateCLK(HIGH), lastButtonPress(0) {}
 
-    void setMaxNumber(int maxNum) {
-      maxNumber = maxNum;
+  void begin() {
+    pinMode(CLK, INPUT);
+    pinMode(DT, INPUT);
+    pinMode(SW, INPUT_PULLUP);
+    lastStateCLK = digitalRead(CLK);
+  }
+
+  int getEncoderValue() {
+    int currentStateCLK = digitalRead(CLK);
+    if (currentStateCLK != lastStateCLK && currentStateCLK == HIGH) {
+      counter += (digitalRead(DT) != currentStateCLK) ? 1 : -1;
+      counter = (counter < 0) ? (counter + maxNumber) : (counter % maxNumber);
     }
-    
-    void resetCounter() {
-      counter = 0;
+    lastStateCLK = currentStateCLK;
+    return counter;
+  }
+
+  bool isButtonPressed() {
+    static bool lastButtonState = HIGH;
+    bool currentState = digitalRead(SW);
+    if (lastButtonState == HIGH && currentState == LOW) {
+      if (millis() - lastButtonPress > 200) {
+        lastButtonPress = millis();
+        lastButtonState = currentState;
+        return true;
+      }
     }
+    lastButtonState = currentState;
+    return false;
+  }
+
+  void setMaxNumber(int maxNum) {
+    maxNumber = maxNum;
+  }
   
-  private:
-    int CLK, DT, SW, maxNumber;
-    int counter;
-    int lastStateCLK;
-    unsigned long lastButtonPress;
-  };
+  void resetCounter() {
+    counter = 0;
+  }
+
+private:
+  int CLK, DT, SW, maxNumber;
+  int counter;
+  int lastStateCLK;
+  unsigned long lastButtonPress;
+};
 
 class LEDArray {
 public:
@@ -238,39 +240,47 @@ private:
 
 class StateManager {
   public:
-    StateManager(RotaryEncoder &encoderRef)
-      : currentMode(DisplayMode::DISPATCH), _encoder(encoderRef) {}
+    StateManager(RotaryEncoder &encoder, int dispatchMax, int archiveMax)
+      : currentMode(DisplayMode::DISPATCH),
+        _encoder(encoder),
+        _dispatchMax(dispatchMax),
+        _archiveMax(archiveMax) {}
+
+    void begin() {
+      _encoder.setMaxNumber(_dispatchMax);
+    }
   
-    void begin() {}
+    void update(bool toggleButtonPressed) {
+      if (toggleButtonPressed) {
+        toggleMode();
+      }
+    }
   
     void toggleMode() {
       if (currentMode == DisplayMode::DISPATCH) {
         currentMode = DisplayMode::ARCHIVE;
-        _encoder.setMaxNumber(ROT_NR_1);
+        _encoder.setMaxNumber(_archiveMax);
       } else {
         currentMode = DisplayMode::DISPATCH;
-        _encoder.setMaxNumber(NUM_LEDS);
+        _encoder.setMaxNumber(_dispatchMax);
       }
       _encoder.resetCounter();
     }
   
-    DisplayMode getMode() const {
-      return currentMode;
-    }
-  
-    int getIndex() const {
-      return _encoder.getEncoderValue();
-    }
+    DisplayMode getMode() const { return currentMode; }
+    int getIndex() const { return _encoder.getEncoderValue(); }
   
   private:
-    DisplayMode currentMode;
-    RotaryEncoder &_encoder;
-};
-
+      DisplayMode currentMode;
+      RotaryEncoder &_encoder;
+      const int _dispatchMax;
+      const int _archiveMax;
+  };
+  
 MultiplexedDisplay display(2, digitOnPins, segmentPins);
-RotaryEncoder encoder(CLK1, DT1, SW1, ROT_NR_1);
-LEDArray ledArray(dispatchPins, NUM_LEDS);
-StateManager stateManager(encoder);
+RotaryEncoder encoder(CLK1, DT1, SW1, NR_ARCHIVE);
+LEDArray ledArray(dispatchPins, NR_DISPATCHES);
+StateManager stateManager(encoder, NR_DISPATCHES, NR_ARCHIVE); 
 
 void setup() {
   stateManager.begin();
@@ -284,9 +294,7 @@ void setup() {
 }
 
 void loop() {
-  int encoderValue = encoder.getEncoderValue();
-
-  // Read current button state
+  // Read current button state and toggle mode if button was pressed
   bool currentDispButtonState = digitalRead(disp_or_arch_button);
 
   if (lastDispButtonState == HIGH && currentDispButtonState == LOW) {
@@ -300,7 +308,8 @@ void loop() {
     String msg = (stateManager.getMode() == DisplayMode::DISPATCH ? "dispatch, " : "archive, ") + String(stateManager.getIndex());
     Serial.println(msg);
   }
-
+  
+  // Update display based on current mode
   if (stateManager.getMode() == DisplayMode::DISPATCH) {
     ledArray.turnOff();
     ledArray.setLED(stateManager.getIndex(), 255);
@@ -311,6 +320,7 @@ void loop() {
     ledArray.turnOff();
   }
 
+  // Read serial input to control the button LED
   if (Serial.available()) {
     String command = Serial.readStringUntil('\n');
     
