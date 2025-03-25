@@ -6,13 +6,13 @@ const int disp_or_arch_button = 53;
 const int disp_or_arch_button_led = A14;
 
 // Rotary 1 Encoder Inputs
-const int CLK1 = 18;
+const int CLK1 = 3;
 const int DT1 = 17;
 const int SW1 = 16;
 
 // Rotary 2 Encoder Inputs
 const int CLK2 = 2;
-const int DT2 = 3;
+const int DT2 = 14;
 const int SW2 = 4;
 const int ROT_NR_2 = 3;
 
@@ -198,7 +198,7 @@ private:
 class LEDArray {
 public:
   static const int MAX_LEDS = 16;
-  static const int DEFAULT_BRIGHTNESS = 80;
+  static const int DEFAULT_BRIGHTNESS = 255;
 
   LEDArray(const int* pins, int numLeds, int brightness = DEFAULT_BRIGHTNESS) {
     _numLeds = (numLeds <= MAX_LEDS) ? numLeds : MAX_LEDS;
@@ -206,6 +206,12 @@ public:
     for (int i = 0; i < _numLeds; i++) {
       _pins[i] = pins[i];
     }
+    // Increase PWM frequency for Timer1 (pins 11, 12)
+    TCCR1B = TCCR1B & B11111000 | B00000001;
+    // Increase PWM frequency for Timer2 (pins 9, 10)
+    TCCR2B = TCCR2B & B11111000 | B00000001;
+    // Increase PWM frequency for Timer3 (pins 2, 3, 5)
+    TCCR3B = TCCR3B & B11111000 | B00000001;
   }
 
   void begin() {
