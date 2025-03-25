@@ -3,6 +3,10 @@ import argparse
 import json
 import sys
 import requests
+import serial
+import serial.tools.list_ports
+import threading
+import time
 
 
 class KodiController:
@@ -118,45 +122,109 @@ class KodiController:
     print(f"Playing file: {file_path}")
 
 
+class SerialKodiController(KodiController):
+
+  def __init__(self, *args, serial_port=None, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.playing = False
+    self.stop_requested = False
+    self.ser = self.init_serial(serial_port)
+    self.button_cool_down_s = 0.5
+    self.last_button_press = time.time()
+
+  def init_serial(self, port):
+    if port is None:
+      ports = list(serial.tools.list_ports.comports())
+      usb_ports = [p for p in ports if "USB" in p.device.upper()]
+      if usb_ports:
+        port = usb_ports[0].device
+      else:
+        raise Exception("No serial ports found.")
+    print(f"Using serial port: {port}")
+    return serial.Serial(port, baudrate=9600, timeout=1)
+
+  def process_line(self, line):
+    try:
+      decoded = line.decode().strip()
+      label, index = decoded.split(",")
+      label = label.strip().lower()
+      index = int(index.strip())
+    except Exception as e:
+      print(f"Error parsing line: {line}, {e}")
+      return
+
+    if time.time() - self.last_button_press < self.button_cool_down_s:
+      return
+    self.last_button_press = time.time()
+
+    if label != "video":
+      return
+    if index >= len(self.files):
+      print(f"Index {index} out of range. Only {len(self.files)} available.")
+      return
+
+    self.play_by_index(index)
+
+  def run(self):
+    try:
+      while True:
+        line = self.ser.readline().strip()
+        if line:
+          self.process_line(line)
+    except KeyboardInterrupt:
+      print("Exiting...")
+    finally:
+      self.ser.close()
+
+
 def main():
-  parser = argparse.ArgumentParser(
-      description="Kodi JSON-RPC Controller - Always plays a file.")
-  parser.add_argument("--ip",
-                      default="192.168.1.76",
-                      help="Kodi IP address (default: 192.168.1.76)")
-  parser.add_argument("--port",
-                      default="8080",
-                      help="Kodi port (default: 8080)")
-  parser.add_argument("--user",
-                      default="kodi",
-                      help="Kodi username (default: kodi)")
-  parser.add_argument("--password",
-                      default="kodi",
-                      help="Kodi password (default: kodi)")
-  parser.add_argument("--dir",
-                      default=None,
-                      help="Directory to load files from "
-                      "(if omitted, the first video source is used)")
-  parser.add_argument("--index",
-                      type=int,
-                      default=0,
-                      help="Index of the file to play (default: 0)")
-  parser.add_argument("--list-dirs",
-                      action="store_true",
-                      help="List available video sources and exit")
+  if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Kodi JSON-RPC Controller - Always plays a file.")
+    parser.add_argument("--ip",
+                        default="192.168.1.76",
+                        help="Kodi IP address (default: 192.168.1.76)")
+    parser.add_argument("--port",
+                        default="8080",
+                        help="Kodi port (default: 8080)")
+    parser.add_argument("--user",
+                        default="kodi",
+                        help="Kodi username (default: kodi)")
+    parser.add_argument("--password",
+                        default="kodi",
+                        help="Kodi password (default: kodi)")
+    parser.add_argument("--dir",
+                        default=None,
+                        help="Directory to load files from "
+                        "(if omitted, the first video source is used)")
+    parser.add_argument("--index",
+                        type=int,
+                        default=None,
+                        help="Index of the file to play (default: 0)")
+    parser.add_argument("--list-dirs",
+                        action="store_true",
+                        help="List available video sources and exit")
+    parser.add_argument("--serial_port", default=None)
+    args = parser.parse_args()
 
-  args = parser.parse_args()
+    if args.index is not None:
 
-  controller = KodiController(ip=args.ip,
-                              port=args.port,
-                              user=args.user,
-                              password=args.password,
-                              directory=args.dir)
+      controller = KodiController(ip=args.ip,
+                                  port=args.port,
+                                  user=args.user,
+                                  password=args.password,
+                                  directory=args.dir)
 
-  if args.list_dirs:
-    controller.list_video_sources()
-  else:
-    controller.play_by_index(args.index)
+      controller.list_video_sources()
+      controller.play_by_index(args.index)
+    else:
+      controller = SerialKodiController(ip=args.ip,
+                                        port=args.port,
+                                        user=args.user,
+                                        password=args.password,
+                                        directory=args.dir,
+                                        serial_port=args.serial_port)
+      controller.run()
 
 
 if __name__ == "__main__":
