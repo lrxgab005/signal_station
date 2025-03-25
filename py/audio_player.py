@@ -53,7 +53,6 @@ class AudioPlayerUDP:
 
   def play_track(self, folder: str, track_number: int):
     if folder not in self.track_paths:
-      logging.error(f"Invalid folder: {folder}")
       return
     if track_number >= len(self.track_paths[folder]):
       logging.error(f"Invalid track number {track_number} for folder {folder}")
@@ -83,6 +82,10 @@ class AudioPlayerUDP:
       track_number = int(parts[1].strip())
     except Exception as e:
       logging.error(f"Error processing line '{line}': {e}")
+      return
+
+    if folder not in self.track_paths:
+      logging.warning(f"Ignoring unknown folder: {folder}")
       return
 
     logging.info(
