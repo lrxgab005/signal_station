@@ -51,6 +51,29 @@ Multiple devices communicate via various protocols to create an interactive medi
 +----------------+   +--------------------+
 ```
 
+### Serial to UDP Bridge
+
+```text
+                +----------------------+
+                |   Serial Device      |
+                +----------------------+
+                           │ Serial MSG
+                           v
+           +----------------------------------+
+           |       Serial-to-UDP Bridge       |
+           |  (sends UDP datagrams to 7070/1) |
+           +----------------------------------+
+                           │
+                           │ UDP
+           ┌──────────────┴──────────────┐
+           │                             │
+           ▼                             ▼
++----------------------+       +----------------------+
+|  Kodi Controller     |       |    Audio Player      |
+|  (listens on 7070)   |       |  (listens on 7071)   |
++----------------------+       +----------------------+
+```
+
 ## Setup Arduino
 
 ## Arduino

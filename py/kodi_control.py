@@ -3,16 +3,11 @@ import argparse
 import json
 import sys
 import requests
-import serial
-import serial.tools.list_ports
-import threading
 import time
+import socket
 
 
 class KodiController:
-  """
-  A simple Kodi JSON-RPC controller to play a file from a directory on a remote device.
-  """
 
   def __init__(self,
                ip="192.168.1.76",
@@ -22,11 +17,9 @@ class KodiController:
                directory=None):
     self.url = f"http://{ip}:{port}/jsonrpc"
     self.auth = (user, password)
-
-    if directory is None:
-      self.directory = self.get_first_video_source()
-    else:
-      self.directory = directory
+    # Auto-detect video source if not provided.
+    self.directory = directory if directory is not None else self.get_first_video_source(
+    )
     self.files = self.load_files(self.directory)
 
   def json_rpc_request(self, payload):
@@ -52,8 +45,7 @@ class KodiController:
         "id": 1
     }
     result = self.json_rpc_request(payload)
-    sources = result.get("result", {}).get("sources", [])
-    return sources
+    return result.get("result", {}).get("sources", [])
 
   def get_first_video_source(self):
     sources = self.get_video_sources()
@@ -67,17 +59,6 @@ class KodiController:
       sys.exit(1)
     print(f"Using video source: {first_source.get('label', directory)}")
     return directory
-
-  def list_video_sources(self):
-    sources = self.get_video_sources()
-    if not sources:
-      print("No video sources available.")
-      return
-    print("Available Video Sources:")
-    for idx, source in enumerate(sources):
-      label = source.get("label", source.get("file", "Unknown"))
-      file_path = source.get("file", "Unknown")
-      print(f"[{idx}] {label} -> {file_path}")
 
   def load_files(self, directory):
     payload = {
@@ -100,13 +81,11 @@ class KodiController:
     try:
       file_entry = self.files[index]
     except IndexError:
-      print(
-          f"Index {index} out of range. Only {len(self.files)} file(s) available."
-      )
-      sys.exit(1)
+      print(f"Index {index} out of range. Only {len(self.files)} available.")
+      return
     file_path = file_entry.get("file")
     if not file_path:
-      print("File entry does not contain a file path. Exiting.")
+      print("File entry is missing file path. Exiting.")
       sys.exit(1)
     payload = {
         "jsonrpc": "2.0",
@@ -122,109 +101,104 @@ class KodiController:
     print(f"Playing file: {file_path}")
 
 
-class SerialKodiController(KodiController):
+class UDPKodiController(KodiController):
 
-  def __init__(self, *args, serial_port=None, **kwargs):
-    super().__init__(*args, **kwargs)
-    self.playing = False
-    self.stop_requested = False
-    self.ser = self.init_serial(serial_port)
-    self.button_cool_down_s = 0.5
+  def __init__(self,
+               ip="192.168.1.76",
+               port="8080",
+               user="kodi",
+               password="kodi",
+               directory=None,
+               udp_bind_host="127.0.0.1",
+               udp_bind_port=7071,
+               button_cool_down_s=0.5):
+    super().__init__(ip=ip,
+                     port=port,
+                     user=user,
+                     password=password,
+                     directory=directory)
+    self.udp_bind_host = udp_bind_host
+    self.udp_bind_port = udp_bind_port
+    self.button_cool_down_s = button_cool_down_s
     self.last_button_press = time.time()
+    self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    self.udp_socket.bind((self.udp_bind_host, self.udp_bind_port))
+    print(
+        f"UDP server listening on {(self.udp_bind_host, self.udp_bind_port)}")
 
-  def init_serial(self, port):
-    if port is None:
-      ports = list(serial.tools.list_ports.comports())
-      usb_ports = [p for p in ports if "USB" in p.device.upper()]
-      if usb_ports:
-        port = usb_ports[0].device
-      else:
-        raise Exception("No serial ports found.")
-    print(f"Using serial port: {port}")
-    return serial.Serial(port, baudrate=9600, timeout=1)
-
-  def process_line(self, line):
+  def process_message(self, data):
     try:
-      decoded = line.decode().strip()
+      decoded = data.decode().strip()
       label, index = decoded.split(",")
-      label = label.strip().lower()
+      if label.strip().lower() != "video":
+        print(f"Ignoring non-video message: {decoded}")
+        return
       index = int(index.strip())
     except Exception as e:
-      print(f"Error parsing line: {line}, {e}")
+      print(f"Error parsing UDP data: {data} ({e})")
       return
 
     if time.time() - self.last_button_press < self.button_cool_down_s:
       return
     self.last_button_press = time.time()
-
-    if label != "video":
-      return
     if index >= len(self.files):
       print(f"Index {index} out of range. Only {len(self.files)} available.")
       return
-
     self.play_by_index(index)
 
   def run(self):
     try:
       while True:
-        line = self.ser.readline().strip()
-        if line:
-          self.process_line(line)
+        data, addr = self.udp_socket.recvfrom(1024)
+        if data:
+          self.process_message(data)
     except KeyboardInterrupt:
-      print("Exiting...")
+      print("Exiting UDP Kodi controller...")
     finally:
-      self.ser.close()
+      self.udp_socket.close()
 
 
 def main():
-  if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Kodi JSON-RPC Controller - Always plays a file.")
-    parser.add_argument("--ip",
-                        default="192.168.1.76",
-                        help="Kodi IP address (default: 192.168.1.76)")
-    parser.add_argument("--port",
-                        default="8080",
-                        help="Kodi port (default: 8080)")
-    parser.add_argument("--user",
-                        default="kodi",
-                        help="Kodi username (default: kodi)")
-    parser.add_argument("--password",
-                        default="kodi",
-                        help="Kodi password (default: kodi)")
-    parser.add_argument("--dir",
-                        default=None,
-                        help="Directory to load files from "
-                        "(if omitted, the first video source is used)")
-    parser.add_argument("--index",
-                        type=int,
-                        default=None,
-                        help="Index of the file to play (default: 0)")
-    parser.add_argument("--list-dirs",
-                        action="store_true",
-                        help="List available video sources and exit")
-    parser.add_argument("--serial_port", default=None)
-    args = parser.parse_args()
+  parser = argparse.ArgumentParser(
+      description="Kodi JSON-RPC Controller - UDP Mode Only")
+  parser.add_argument("--ip",
+                      default="192.168.1.76",
+                      help="Kodi IP address (default: 192.168.1.76)")
+  parser.add_argument("--port",
+                      default="8080",
+                      help="Kodi port (default: 8080)")
+  parser.add_argument("--user",
+                      default="kodi",
+                      help="Kodi username (default: kodi)")
+  parser.add_argument("--password",
+                      default="kodi",
+                      help="Kodi password (default: kodi)")
+  parser.add_argument(
+      "--dir",
+      default=None,
+      help="Directory for video files (default: first video source)")
+  parser.add_argument("--udp_bind_host",
+                      default="127.0.0.1",
+                      help="UDP bind host (default: 127.0.0.1)")
+  parser.add_argument("--udp_bind_port",
+                      type=int,
+                      default=7071,
+                      help="UDP bind port (default: 7071)")
+  parser.add_argument("--button_cool_down_s",
+                      type=float,
+                      default=0.5,
+                      help="Button cool-down time (seconds)")
+  args = parser.parse_args()
 
-    if args.index is not None:
-
-      controller = KodiController(ip=args.ip,
-                                  port=args.port,
-                                  user=args.user,
-                                  password=args.password,
-                                  directory=args.dir)
-
-      controller.list_video_sources()
-      controller.play_by_index(args.index)
-    else:
-      controller = SerialKodiController(ip=args.ip,
-                                        port=args.port,
-                                        user=args.user,
-                                        password=args.password,
-                                        directory=args.dir,
-                                        serial_port=args.serial_port)
-      controller.run()
+  controller = UDPKodiController(ip=args.ip,
+                                 port=args.port,
+                                 user=args.user,
+                                 password=args.password,
+                                 directory=args.dir,
+                                 udp_bind_host=args.udp_bind_host,
+                                 udp_bind_port=args.udp_bind_port,
+                                 button_cool_down_s=args.button_cool_down_s)
+  controller.run()
 
 
 if __name__ == "__main__":

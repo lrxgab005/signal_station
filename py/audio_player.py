@@ -1,6 +1,5 @@
 import argparse
-import serial
-import serial.tools.list_ports
+import socket
 import time
 import threading
 import logging
@@ -11,42 +10,32 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s: %(message)s")
 
 
-class AudioPlayer:
+class AudioPlayerUDP:
 
   def __init__(self,
-               port=None,
-               baudrate=2000000,
-               timeout=1,
+               udp_bind_host="127.0.0.1",
+               udp_bind_port=9999,
                audio_dir=os.path.join(os.getcwd(), "data", "sounds"),
                button_cool_down_s=0.5):
-    if port is None:
-      ports = list(serial.tools.list_ports.comports())
-      usb_ports = [p for p in ports if "USB" in p.device.upper()]
-      if usb_ports:
-        port = usb_ports[0].device
-        logging.info(f"Auto-detected USB serial port: {port}")
-      elif ports:
-        port = ports[0].device
-        logging.info(f"Auto-detected serial port (no 'USB' found): {port}")
-      else:
-        raise Exception("No serial ports found.")
-
-    self.ser = serial.Serial(port, baudrate=baudrate, timeout=timeout)
-    self.playing = False
+    self.udp_bind_host = udp_bind_host
+    self.udp_bind_port = udp_bind_port
     self.audio_dir = audio_dir
-    pygame.mixer.init()
-    self.track_paths = self.load_tracks(
-    )  # dict with keys 'dispatch' and 'archive'
     self.button_cool_down_s = button_cool_down_s
     self.last_button_press = time.time()
+    self.playing = False
     self.stop_requested = False
 
-    self.send_serial("ON")
+    # Setup UDP listener
+    self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    self.udp_socket.bind((self.udp_bind_host, self.udp_bind_port))
+    logging.info(
+        f"UDP server listening on {(self.udp_bind_host, self.udp_bind_port)}")
+
+    pygame.mixer.init()
+    self.track_paths = self.load_tracks()
 
   def load_tracks(self):
-    # Common audio formats supported by pygame
     SUPPORTED_FORMATS = ('.wav', '.mp3', '.ogg')
-
     tracks = {"dispatch": [], "archive": []}
     for folder in tracks.keys():
       folder_path = os.path.join(self.audio_dir, folder)
@@ -62,9 +51,6 @@ class AudioPlayer:
       logging.info(f"Loaded {len(tracks[folder])} tracks from {folder}")
     return tracks
 
-  def send_serial(self, message: str):
-    self.ser.write((message + "\n").encode())
-
   def play_track(self, folder: str, track_number: int):
     if folder not in self.track_paths:
       logging.error(f"Invalid folder: {folder}")
@@ -75,7 +61,6 @@ class AudioPlayer:
 
     self.playing = True
     self.stop_requested = False
-    self.send_serial("ON")
     track_path = self.track_paths[folder][track_number]
     logging.info(f"Playing track: {folder}/{track_number} {track_path}")
     pygame.mixer.music.load(track_path)
@@ -83,7 +68,6 @@ class AudioPlayer:
     while pygame.mixer.music.get_busy() and not self.stop_requested:
       time.sleep(0.1)
     pygame.mixer.music.stop()
-    self.send_serial("OFF")
     self.playing = False
 
   def process_line(self, line: bytes):
@@ -105,7 +89,7 @@ class AudioPlayer:
         f"Received command: folder={folder}, track_number={track_number}")
     if self.playing:
       self.stop_requested = True
-      time.sleep(0.2)  # Give time for current playback to stop
+      time.sleep(0.2)  # Allow current playback to terminate
     self.check_button(folder, track_number)
 
   def check_button(self, folder: str, track_number: int):
@@ -120,30 +104,25 @@ class AudioPlayer:
   def run(self):
     try:
       while True:
-        line = self.ser.readline().strip()
-        self.process_line(line)
+        data, addr = self.udp_socket.recvfrom(1024)
+        self.process_line(data)
     except KeyboardInterrupt:
-      logging.info("Exiting...")
+      logging.info("Exiting UDP audio player...")
     finally:
-      self.ser.close()
+      self.udp_socket.close()
 
 
 def main():
   parser = argparse.ArgumentParser(
-      description="Audio Player with Serial USB Detection")
-  parser.add_argument(
-      "--port",
-      type=str,
-      default=None,
-      help="Serial port path (auto-detect USB if not provided)")
-  parser.add_argument("--baudrate",
+      description="Audio Player with UDP Command Reception")
+  parser.add_argument("--udp_bind_host",
+                      type=str,
+                      default="127.0.0.1",
+                      help="UDP bind host")
+  parser.add_argument("--udp_bind_port",
                       type=int,
-                      default=2000000,
-                      help="Baud rate for the serial connection")
-  parser.add_argument("--timeout",
-                      type=float,
-                      default=1,
-                      help="Timeout for the serial connection")
+                      default=7070,
+                      help="UDP bind port")
   parser.add_argument("--audio_dir",
                       type=str,
                       default=os.path.join(os.getcwd(), "data", "sounds"),
@@ -155,11 +134,10 @@ def main():
                       help="Button cool-down time in seconds")
   args = parser.parse_args()
 
-  player = AudioPlayer(port=args.port,
-                       baudrate=args.baudrate,
-                       timeout=args.timeout,
-                       audio_dir=args.audio_dir,
-                       button_cool_down_s=args.button_cool_down_s)
+  player = AudioPlayerUDP(udp_bind_host=args.udp_bind_host,
+                          udp_bind_port=args.udp_bind_port,
+                          audio_dir=args.audio_dir,
+                          button_cool_down_s=args.button_cool_down_s)
   player.run()
 
 
