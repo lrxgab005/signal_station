@@ -21,7 +21,7 @@ const int segmentPins[7] = {35, 37, 39, 41, 43, 45, 47};
 const int digitOnPins[2] = {31, 33};
 
 // Interface constants
-const int NR_ARCHIVE = 82;
+const int NR_ARCHIVE = 81;
 const int NR_DISPATCHES = 8;
 
 // Dispatch LED Array pins 

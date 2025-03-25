@@ -43,6 +43,9 @@ class AudioPlayer:
     self.send_serial("ON")
 
   def load_tracks(self):
+    # Common audio formats supported by pygame
+    SUPPORTED_FORMATS = ('.wav', '.mp3', '.ogg')
+
     tracks = {"dispatch": [], "archive": []}
     for folder in tracks.keys():
       folder_path = os.path.join(self.audio_dir, folder)
@@ -50,8 +53,11 @@ class AudioPlayer:
         logging.warning(f"Directory not found: {folder_path}")
         continue
       for track in sorted(os.listdir(folder_path)):
-        track_path = os.path.join(folder_path, track)
-        tracks[folder].append(track_path)
+        if track.lower().endswith(SUPPORTED_FORMATS):
+          track_path = os.path.join(folder_path, track)
+          tracks[folder].append(track_path)
+        else:
+          logging.warning(f"Skipping unsupported file format: {track}")
       logging.info(f"Loaded {len(tracks[folder])} tracks from {folder}")
     return tracks
 
