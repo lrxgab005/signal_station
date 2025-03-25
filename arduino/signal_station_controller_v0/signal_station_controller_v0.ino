@@ -14,7 +14,6 @@ const int SW1 = 16;
 const int CLK2 = 2;
 const int DT2 = 14;
 const int SW2 = 4;
-const int ROT_NR_2 = 3;
 
 // Segment pins for 7 segments: A, B, C, D, E, F, G
 const int segmentPins[7] = {35, 37, 39, 41, 43, 45, 47};
@@ -23,6 +22,7 @@ const int digitOnPins[2] = {31, 33};
 // Interface constants
 const int NR_ARCHIVE = 81;
 const int NR_DISPATCHES = 8;
+const int NR_VIDEOS = 3;
 
 // Dispatch LED Array pins 
 const int dispatchPins[NR_DISPATCHES] = {12, 11, 10, 9, 8, 7, 6, 5};
@@ -245,53 +245,55 @@ private:
 };
 
 class StateManager {
-  public:
-    StateManager(RotaryEncoder &encoder, int dispatchMax, int archiveMax)
-      : currentMode(DisplayMode::DISPATCH),
-        _encoder(encoder),
-        _dispatchMax(dispatchMax),
-        _archiveMax(archiveMax) {}
+public:
+  StateManager(RotaryEncoder &encoder, int dispatchMax, int archiveMax)
+    : currentMode(DisplayMode::DISPATCH),
+      _encoder(encoder),
+      _dispatchMax(dispatchMax),
+      _archiveMax(archiveMax) {}
 
-    void begin() {
+  void begin() {
+    _encoder.setMaxNumber(_dispatchMax);
+  }
+
+  void update(bool toggleButtonPressed) {
+    if (toggleButtonPressed) {
+      toggleMode();
+    }
+  }
+
+  void toggleMode() {
+    if (currentMode == DisplayMode::DISPATCH) {
+      currentMode = DisplayMode::ARCHIVE;
+      _encoder.setMaxNumber(_archiveMax);
+    } else {
+      currentMode = DisplayMode::DISPATCH;
       _encoder.setMaxNumber(_dispatchMax);
     }
-  
-    void update(bool toggleButtonPressed) {
-      if (toggleButtonPressed) {
-        toggleMode();
-      }
-    }
-  
-    void toggleMode() {
-      if (currentMode == DisplayMode::DISPATCH) {
-        currentMode = DisplayMode::ARCHIVE;
-        _encoder.setMaxNumber(_archiveMax);
-      } else {
-        currentMode = DisplayMode::DISPATCH;
-        _encoder.setMaxNumber(_dispatchMax);
-      }
-      _encoder.resetCounter();
-    }
-  
-    DisplayMode getMode() const { return currentMode; }
-    int getIndex() const { return _encoder.getEncoderValue(); }
-  
-  private:
-      DisplayMode currentMode;
-      RotaryEncoder &_encoder;
-      const int _dispatchMax;
-      const int _archiveMax;
-  };
+    _encoder.resetCounter();
+  }
+
+  DisplayMode getMode() const { return currentMode; }
+  int getIndex() const { return _encoder.getEncoderValue(); }
+
+private:
+    DisplayMode currentMode;
+    RotaryEncoder &_encoder;
+    const int _dispatchMax;
+    const int _archiveMax;
+};
   
 MultiplexedDisplay display(2, digitOnPins, segmentPins);
-RotaryEncoder encoder(CLK1, DT1, SW1, NR_ARCHIVE);
+RotaryEncoder encoderAudioState(CLK1, DT1, SW1, NR_ARCHIVE);
 LEDArray ledArray(dispatchPins, NR_DISPATCHES);
-StateManager stateManager(encoder, NR_DISPATCHES, NR_ARCHIVE); 
+StateManager stateManager(encoderAudioState, NR_DISPATCHES, NR_ARCHIVE); 
+RotaryEncoder encoderVideoState(CLK2, DT2, SW2, NR_VIDEOS);
 
 void setup() {
   stateManager.begin();
   display.begin();
-  encoder.begin();
+  encoderAudioState.begin();
+  encoderVideoState.begin();
   ledArray.begin();
   pinMode(disp_or_arch_button, INPUT_PULLUP);
   pinMode(disp_or_arch_button_led, OUTPUT);
@@ -309,17 +311,25 @@ void loop() {
   }
   lastDispButtonState = currentDispButtonState;
 
-  // Rotary encoder button sends one serial message when pressed
-  if (encoder.isButtonPressed()) {
+  // Rotary encoderAudioState button sends one serial message when pressed
+  if (encoderAudioState.isButtonPressed()) {
     String msg = (stateManager.getMode() == DisplayMode::DISPATCH ? "dispatch, " : "archive, ") + String(stateManager.getIndex());
     Serial.println(msg);
   }
+
+  // Rotary encoderVideoState button sends one serial message when pressed
+  if (encoderVideoState.isButtonPressed()) {
+    Serial.println("video, " + String(encoderVideoState.getEncoderValue()));
+  }
+
+  display.updateValue(encoderVideoState.getEncoderValue());
+  display.refresh();
   
   // Update display based on current mode
   if (stateManager.getMode() == DisplayMode::DISPATCH) {
     ledArray.turnOff();
     ledArray.setLED(stateManager.getIndex(), 255);
-    display.turnOff();
+    // display.turnOff();
   } else {
     display.updateValue(stateManager.getIndex());
     display.refresh();
