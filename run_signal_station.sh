@@ -10,7 +10,13 @@ KODI_SCRIPT="py/kodi_control.py"
 
 AUDIO_PORT=7070
 KODI_PORT=7071
-ANDROID_IP="192.168.0.33"
+ANDROID_IP=$1
+
+# Check if Android IP is provided
+if [ -z "$ANDROID_IP" ]; then
+    echo "Usage: $0 <android_ip>"
+    exit 1
+fi
 
 # Kill any existing session
 tmux kill-session -t $SESSION_NAME 2>/dev/null || true
