@@ -8,8 +8,9 @@ SERIAL_SCRIPT="py/serial_to_udp_bridge.py"
 AUDIO_SCRIPT="py/audio_player.py"
 KODI_SCRIPT="py/kodi_control.py"
 
-AUDIO_PORT=7070
-KODI_PORT=7071
+AUDIO_BIND_PORT=7070
+KODI_BIND_PORT=7071
+AUDIO_SEND_PORT=7072
 ANDROID_IP=$1
 
 # Check if Android IP is provided
@@ -34,9 +35,9 @@ tmux select-pane -U
 PANES=($(tmux list-panes -F "#{pane_id}"))
 
 # Auto-restart loops in each pane:
-tmux send-keys -t ${PANES[0]} "$VENV_ACTIVATE && while true; do python3 $SERIAL_SCRIPT --udp_targets 127.0.0.1:$AUDIO_PORT 127.0.0.1:$KODI_PORT; echo \"[$(date)] $SERIAL_SCRIPT crashed. Restarting in 1 second...\"; sleep 1; done" $CM
-tmux send-keys -t ${PANES[1]} "$VENV_ACTIVATE && while true; do python3 $AUDIO_SCRIPT --udp_bind_port $AUDIO_PORT; echo \"[$(date)] $AUDIO_SCRIPT crashed. Restarting in 1 second...\"; sleep 1; done" $CM
-tmux send-keys -t ${PANES[2]} "$VENV_ACTIVATE && while true; do python3 $KODI_SCRIPT --udp_bind_port $KODI_PORT --ip $ANDROID_IP; echo \"[$(date)] $KODI_SCRIPT crashed. Restarting in 1 second...\"; sleep 1; done" $CM
+tmux send-keys -t ${PANES[0]} "$VENV_ACTIVATE && while true; do python3 $SERIAL_SCRIPT --udp_send_targets 127.0.0.1:$AUDIO_BIND_PORT 127.0.0.1:$KODI_BIND_PORT --udp_listen_targets 127.0.0.1:$AUDIO_SEND_PORT; echo \"[$(date)] $SERIAL_SCRIPT crashed. Restarting in 1 second...\"; sleep 1; done" $CM
+tmux send-keys -t ${PANES[1]} "$VENV_ACTIVATE && while true; do python3 $AUDIO_SCRIPT --udp_bind_port $AUDIO_BIND_PORT --udp_send_port $AUDIO_SEND_PORT; echo \"[$(date)] $AUDIO_SCRIPT crashed. Restarting in 1 second...\"; sleep 1; done" $CM
+tmux send-keys -t ${PANES[2]} "$VENV_ACTIVATE && while true; do python3 $KODI_SCRIPT --udp_bind_port $KODI_BIND_PORT --ip $ANDROID_IP; echo \"[$(date)] $KODI_SCRIPT crashed. Restarting in 1 second...\"; sleep 1; done" $CM
 
 # Attach to session
 tmux attach-session -t $SESSION_NAME
