@@ -53,24 +53,26 @@ Multiple devices communicate via various protocols to create an interactive medi
 
 ### Serial to UDP Bridge
 
+A bridge application that runs on Raspberry Pi to connect Arduino serial output to UDP-based services.
+
 ```text
-                +----------------------+
-                |   Serial Device      |
-                +----------------------+
-                           │ Serial MSG
-                           v
+                    +-------------+
+                    |   Arduino   |
+                    +-------------+
+                           │ Serial
+                           v  (USB)
            +----------------------------------+
            |       Serial-to-UDP Bridge       |
            |  (sends UDP datagrams to 7070/1) |
            +----------------------------------+
-                           │
-                           │ UDP
+                          │     UDP
+                          │ (localhost)
            ┌──────────────┴──────────────┐
            │                             │
            ▼                             ▼
 +----------------------+       +----------------------+
 |  Kodi Controller     |       |    Audio Player      |
-|  (listens on 7070)   |       |  (listens on 7071)   |
+|  (listens on 7071)   |       |  (listens on 7070)   |
 +----------------------+       +----------------------+
 ```
 
@@ -81,7 +83,7 @@ Multiple devices communicate via various protocols to create an interactive medi
 ### Setup IDE
 
 1. Open Arduino IDE
-2. Tools->Board->Arduino Uno
+2. Tools->Board->Arduino Mega
 3. Tools->Port->(select the port where Arduino is connected)
 
 ### Upload code
