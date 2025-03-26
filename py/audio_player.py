@@ -14,9 +14,11 @@ class AudioPlayerUDP:
 
   def __init__(self,
                udp_bind_host="127.0.0.1",
-               udp_bind_port=9999,
+               udp_bind_port=7070,
                audio_dir=os.path.join(os.getcwd(), "data", "sounds"),
-               button_cool_down_s=0.5):
+               button_cool_down_s=0.5,
+               udp_send_host="127.0.0.1",
+               udp_send_port=7072):
     self.udp_bind_host = udp_bind_host
     self.udp_bind_port = udp_bind_port
     self.audio_dir = audio_dir
@@ -25,11 +27,16 @@ class AudioPlayerUDP:
     self.playing = False
     self.stop_requested = False
 
-    # Setup UDP listener
+    # Setup UDP listener (for commands)
     self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     self.udp_socket.bind((self.udp_bind_host, self.udp_bind_port))
     logging.info(
         f"UDP server listening on {(self.udp_bind_host, self.udp_bind_port)}")
+
+    # Setup UDP sender (for mode messages)
+    self.udp_send_target = (udp_send_host, udp_send_port)
+    self.udp_send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    logging.info(f"UDP sender sending to {self.udp_send_target}")
 
     pygame.mixer.init()
     self.track_paths = self.load_tracks()
@@ -51,6 +58,13 @@ class AudioPlayerUDP:
       logging.info(f"Loaded {len(tracks[folder])} tracks from {folder}")
     return tracks
 
+  def send_udp_message(self, message: str):
+    try:
+      self.udp_send_socket.sendto(message.encode(), self.udp_send_target)
+      logging.info(f"Sent UDP message to {self.udp_send_target}: {message}")
+    except Exception as e:
+      logging.error(f"Error sending UDP message: {e}")
+
   def play_track(self, folder: str, track_number: int):
     if folder not in self.track_paths:
       return
@@ -62,12 +76,19 @@ class AudioPlayerUDP:
     self.stop_requested = False
     track_path = self.track_paths[folder][track_number]
     logging.info(f"Playing track: {folder}/{track_number} {track_path}")
+
+    # Send "MODE_BUTTON_ON" before playback starts
+    self.send_udp_message("MODE_BUTTON_ON")
+
     pygame.mixer.music.load(track_path)
     pygame.mixer.music.play()
     while pygame.mixer.music.get_busy() and not self.stop_requested:
       time.sleep(0.1)
     pygame.mixer.music.stop()
     self.playing = False
+
+    # Send "MODE_BUTTON_OFF" after playback stops
+    self.send_udp_message("MODE_BUTTON_OFF")
 
   def process_line(self, line: bytes):
     if not line:
@@ -113,11 +134,13 @@ class AudioPlayerUDP:
       logging.info("Exiting UDP audio player...")
     finally:
       self.udp_socket.close()
+      self.udp_send_socket.close()
 
 
 def main():
   parser = argparse.ArgumentParser(
-      description="Audio Player with UDP Command Reception")
+      description="Audio Player with UDP Command Reception "
+      "and UDP Mode Button Messaging")
   parser.add_argument("--udp_bind_host",
                       type=str,
                       default="127.0.0.1",
@@ -125,7 +148,15 @@ def main():
   parser.add_argument("--udp_bind_port",
                       type=int,
                       default=7070,
-                      help="UDP bind port")
+                      help="UDP bind port for receiving commands")
+  parser.add_argument("--udp_send_host",
+                      type=str,
+                      default="127.0.0.1",
+                      help="UDP send host for mode messages")
+  parser.add_argument("--udp_send_port",
+                      type=int,
+                      default=7072,
+                      help="UDP send port for mode messages")
   parser.add_argument("--audio_dir",
                       type=str,
                       default=os.path.join(os.getcwd(), "data", "sounds"),
@@ -140,7 +171,9 @@ def main():
   player = AudioPlayerUDP(udp_bind_host=args.udp_bind_host,
                           udp_bind_port=args.udp_bind_port,
                           audio_dir=args.audio_dir,
-                          button_cool_down_s=args.button_cool_down_s)
+                          button_cool_down_s=args.button_cool_down_s,
+                          udp_send_host=args.udp_send_host,
+                          udp_send_port=args.udp_send_port)
   player.run()
 
 

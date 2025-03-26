@@ -361,9 +361,9 @@ void audioControlLogic() {
   if (Serial.available()) {
     String command = Serial.readStringUntil('\n');
     
-    if (command == "ON")
+    if (command == "MODE_BUTTON_ON")
       digitalWrite(disp_or_arch_button_led, HIGH);
-    else if (command == "OFF")
+    else if (command == "MODE_BUTTON_OFF")
       digitalWrite(disp_or_arch_button_led, LOW); 
   }
 }
