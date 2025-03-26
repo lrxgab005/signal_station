@@ -73,6 +73,7 @@ A bridge application that runs on Raspberry Pi to connect Arduino serial output 
 +----------------------+       +----------------------+
 |  Kodi Controller     |       |    Audio Player      |
 |  (listens on 7071)   |       |  (listens on 7070)   |
+|                      |       |   (sends on 7072)    |
 +----------------------+       +----------------------+
 ```
 
