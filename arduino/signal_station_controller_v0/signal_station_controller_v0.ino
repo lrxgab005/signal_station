@@ -16,8 +16,12 @@ const int DT2 = 14;
 const int SW2 = 4;
 
 // Segment pins for 7 segments: A, B, C, D, E, F, G
-const int segmentPins[7] = {35, 37, 39, 41, 43, 45, 47};
-const int digitOnPins[2] = {31, 33};
+const int controlPanelSegmentsPins[7] = {35, 37, 39, 41, 43, 45, 47};
+const int monitorPanelSegmentsPins[7] = {22, 24, 26, 28, 30, 32, 34};
+
+// Segment ON pins: Digit 1, Digit 2
+const int controlPanelDigitOnPins[2] = {31, 33};
+const int monitorPanelDigitOnPins[2] = {36, 38};
 
 // Interface constants
 const int NR_ARCHIVE = 81;
@@ -283,25 +287,50 @@ private:
     const int _archiveMax;
 };
   
-MultiplexedDisplay display(2, digitOnPins, segmentPins);
+MultiplexedDisplay controlPanelDisplay(2, controlPanelDigitOnPins, controlPanelSegmentsPins);
+MultiplexedDisplay monitorPanelDisplay(2, monitorPanelDigitOnPins, monitorPanelSegmentsPins);
+
 RotaryEncoder encoderAudioState(CLK1, DT1, SW1, NR_ARCHIVE);
-LEDArray ledArray(dispatchPins, NR_DISPATCHES);
-StateManager stateManager(encoderAudioState, NR_DISPATCHES, NR_ARCHIVE); 
 RotaryEncoder encoderVideoState(CLK2, DT2, SW2, NR_VIDEOS);
 
-void setup() {
-  stateManager.begin();
-  display.begin();
+LEDArray dispatchLedArray(dispatchPins, NR_DISPATCHES);
+
+StateManager stateManager(encoderAudioState, NR_DISPATCHES, NR_ARCHIVE); 
+
+void setup() {  
+  controlPanelDisplay.begin();
+  monitorPanelDisplay.begin();
+
   encoderAudioState.begin();
   encoderVideoState.begin();
-  ledArray.begin();
+
+  dispatchLedArray.begin();
+
+  stateManager.begin();
+
   pinMode(disp_or_arch_button, INPUT_PULLUP);
   pinMode(disp_or_arch_button_led, OUTPUT);
 
   Serial.begin(9600);
 }
 
-void loop() {
+void monitorControlLogic() {
+  /*   
+    Monitor Video Control
+  */
+  if (encoderVideoState.isButtonPressed()) {
+    Serial.println("video, " + String(encoderVideoState.getEncoderValue()));
+  }
+
+  monitorPanelDisplay.updateValue(encoderVideoState.getEncoderValue());
+  monitorPanelDisplay.refresh();
+}
+
+void audioControlLogic() {
+  /*   
+    Dispatch / Archive Audio Control
+  */
+
   // Read current button state and toggle mode if button was pressed
   bool currentDispButtonState = digitalRead(disp_or_arch_button);
 
@@ -311,29 +340,21 @@ void loop() {
   }
   lastDispButtonState = currentDispButtonState;
 
-  // Rotary encoderAudioState button sends one serial message when pressed
+  // Rotary encoderAudioState button sends audio file index serial message
   if (encoderAudioState.isButtonPressed()) {
     String msg = (stateManager.getMode() == DisplayMode::DISPATCH ? "dispatch, " : "archive, ") + String(stateManager.getIndex());
     Serial.println(msg);
   }
-
-  // Rotary encoderVideoState button sends one serial message when pressed
-  if (encoderVideoState.isButtonPressed()) {
-    Serial.println("video, " + String(encoderVideoState.getEncoderValue()));
-  }
-
-  display.updateValue(encoderVideoState.getEncoderValue());
-  display.refresh();
   
-  // Update display based on current mode
+  // Update dispatch / archive panels based on current mode
   if (stateManager.getMode() == DisplayMode::DISPATCH) {
-    ledArray.turnOff();
-    ledArray.setLED(stateManager.getIndex(), 255);
-    // display.turnOff();
+    dispatchLedArray.turnOff();
+    dispatchLedArray.setLED(stateManager.getIndex(), 255);
+    controlPanelDisplay.turnOff();
   } else {
-    display.updateValue(stateManager.getIndex());
-    display.refresh();
-    ledArray.turnOff();
+    controlPanelDisplay.updateValue(stateManager.getIndex());
+    controlPanelDisplay.refresh();
+    dispatchLedArray.turnOff();
   }
 
   // Read serial input to control the button LED
@@ -345,4 +366,9 @@ void loop() {
     else if (command == "OFF")
       digitalWrite(disp_or_arch_button_led, LOW); 
   }
+}
+
+void loop() {
+  monitorControlLogic();
+  audioControlLogic();
 }
