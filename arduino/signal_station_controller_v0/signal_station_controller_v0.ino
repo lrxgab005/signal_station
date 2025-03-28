@@ -3,7 +3,7 @@
 // Dispatch / Archive Button & LED
 static bool lastDispButtonState = HIGH;
 const int disp_or_arch_button = 53;
-const int disp_or_arch_button_led = A14;
+const int disp_or_arch_button_led = A11;
 
 // Rotary 1 Encoder Inputs
 const int CLK1 = 3;
@@ -210,12 +210,6 @@ public:
     for (int i = 0; i < _numLeds; i++) {
       _pins[i] = pins[i];
     }
-    // Increase PWM frequency for Timer1 (pins 11, 12)
-    TCCR1B = TCCR1B & B11111000 | B00000001;
-    // Increase PWM frequency for Timer2 (pins 9, 10)
-    TCCR2B = TCCR2B & B11111000 | B00000001;
-    // Increase PWM frequency for Timer3 (pins 2, 3, 5)
-    TCCR3B = TCCR3B & B11111000 | B00000001;
   }
 
   void begin() {
