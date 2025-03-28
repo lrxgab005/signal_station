@@ -1,8 +1,22 @@
 #include <Arduino.h>
 
+// Volume update frequency constant in ms
+const unsigned long FLUX_POTI_UPDATE_INTERVAL = 50;  
+
+// Minimum change in volume to trigger an update
+const unsigned long MIN_POTI_CHANGE = 3;
+
+// Define the number of fluxPotentiometers and their analog pins
+const int NUM_FLUX_POTIS = 4;
+const int fluxPotiPins[NUM_FLUX_POTIS] = {A4, A5, A6, A7};
+
+// To store last volume values for change detection
+int lastfluxPotiValues[NUM_FLUX_POTIS] = {-1, -1, -1, -1};
+unsigned long lastfluxPotiUpdateTime = 0;
+
 // Dispatch / Archive Button & LED
 static bool lastDispButtonState = HIGH;
-const int disp_or_arch_button = 53;
+const int disp_or_arch_button = 51;
 const int disp_or_arch_button_led = A11;
 
 // Rotary 1 Encoder Inputs
@@ -30,6 +44,8 @@ const int NR_VIDEOS = 3;
 
 // Dispatch LED Array pins 
 const int dispatchPins[NR_DISPATCHES] = {12, 11, 10, 9, 8, 7, 6, 5};
+
+String audio_stop_msg = "";
 
 // Mode names: dispatch (for 7-seg) and archive (for LED)
 enum class DisplayMode {
@@ -306,6 +322,11 @@ void setup() {
   pinMode(disp_or_arch_button_led, OUTPUT);
 
   Serial.begin(9600);
+
+  // // Start looping flux control audio files
+  // for (int i = 0; i < NUM_FLUX_POTIS; i++) {
+  //   Serial.println("flux_" + String(i) + ", loop, 1");
+  // }
 }
 
 void monitorControlLogic() {
@@ -336,7 +357,9 @@ void audioControlLogic() {
 
   // Rotary encoderAudioState button sends audio file index serial message
   if (encoderAudioState.isButtonPressed()) {
+    Serial.println(audio_stop_msg);
     String msg = (stateManager.getMode() == DisplayMode::DISPATCH ? "dispatch, " : "archive, ");
+    audio_stop_msg = msg + "stop, " + String(encoderAudioState.getEncoderValue());
     msg += "play, " + String(encoderAudioState.getEncoderValue());
     Serial.println(msg);
   }
@@ -363,7 +386,24 @@ void audioControlLogic() {
   }
 }
 
+void fluxPotentiometerLogic() {
+  unsigned long currentTime = millis();
+  if (currentTime - lastfluxPotiUpdateTime >= FLUX_POTI_UPDATE_INTERVAL) {
+    lastfluxPotiUpdateTime = currentTime;
+    for (int i = 0; i < NUM_FLUX_POTIS; i++) {
+      int rawValue = analogRead(fluxPotiPins[i]);
+      int volume = map(rawValue, 0, 1023, 0, 100);
+      if (abs(volume - lastfluxPotiValues[i]) > MIN_POTI_CHANGE) {
+        lastfluxPotiValues[i] = volume;
+        Serial.println("flux_" + String(i) + ", loop, 0");
+        Serial.println("flux_" + String(i) + ", volume, " + String(volume));
+      }
+    }
+  }
+}
+
 void loop() {
   monitorControlLogic();
   audioControlLogic();
+  fluxPotentiometerLogic();
 }
