@@ -336,7 +336,8 @@ void audioControlLogic() {
 
   // Rotary encoderAudioState button sends audio file index serial message
   if (encoderAudioState.isButtonPressed()) {
-    String msg = (stateManager.getMode() == DisplayMode::DISPATCH ? "dispatch, " : "archive, ") + String(stateManager.getIndex());
+    String msg = (stateManager.getMode() == DisplayMode::DISPATCH ? "dispatch, " : "archive, ");
+    msg += "play, " + String(encoderAudioState.getEncoderValue());
     Serial.println(msg);
   }
   
