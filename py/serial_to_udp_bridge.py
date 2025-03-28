@@ -61,9 +61,9 @@ def main():
     if usb_ports:
       args.port = usb_ports[0].device
       logging.info(f"Auto-detected USB serial port: {args.port}")
-    elif ports:
-      args.port = ports[0].device
-      logging.info(f"Auto-detected serial port (no 'USB' found): {args.port}")
+    # elif ports:
+    #   args.port = ports[0].device
+    #   logging.info(f"Auto-detected serial port (no 'USB' found): {args.port}")
     else:
       logging.error("No serial ports found.")
       return
