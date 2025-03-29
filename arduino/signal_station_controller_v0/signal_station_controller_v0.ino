@@ -4,7 +4,7 @@
 const unsigned long FLUX_POTI_UPDATE_INTERVAL = 50;  
 
 // Minimum change in volume to trigger an update
-const unsigned long MIN_POTI_CHANGE = 3;
+const unsigned long MIN_POTI_CHANGE = 1;
 
 // Define the number of fluxPotentiometers and their analog pins
 const int NUM_FLUX_POTIS = 4;
@@ -321,12 +321,9 @@ void setup() {
   pinMode(disp_or_arch_button, INPUT_PULLUP);
   pinMode(disp_or_arch_button_led, OUTPUT);
 
-  Serial.begin(9600);
-
-  // // Start looping flux control audio files
-  // for (int i = 0; i < NUM_FLUX_POTIS; i++) {
-  //   Serial.println("flux_" + String(i) + ", loop, 1");
-  // }
+  SerialUSB.begin(9600);
+  while (!SerialUSB); // Wait for native USB serial to be ready
+  SerialUSB.println("Hello from Due");
 }
 
 void monitorControlLogic() {
@@ -334,7 +331,7 @@ void monitorControlLogic() {
     Monitor Video Control
   */
   if (encoderVideoState.isButtonPressed()) {
-    Serial.println("video, " + String(encoderVideoState.getEncoderValue()));
+    SerialUSB.println("video, " + String(encoderVideoState.getEncoderValue()));
   }
 
   monitorPanelDisplay.updateValue(encoderVideoState.getEncoderValue());
@@ -355,13 +352,13 @@ void audioControlLogic() {
   }
   lastDispButtonState = currentDispButtonState;
 
-  // Rotary encoderAudioState button sends audio file index serial message
+  // Rotary encoderAudioState button sends audio file index SerialUSB message
   if (encoderAudioState.isButtonPressed()) {
-    Serial.println(audio_stop_msg);
+    SerialUSB.println(audio_stop_msg);
     String msg = (stateManager.getMode() == DisplayMode::DISPATCH ? "dispatch, " : "archive, ");
     audio_stop_msg = msg + "stop, " + String(encoderAudioState.getEncoderValue());
     msg += "play, " + String(encoderAudioState.getEncoderValue());
-    Serial.println(msg);
+    SerialUSB.println(msg);
   }
   
   // Update dispatch / archive panels based on current mode
@@ -375,9 +372,9 @@ void audioControlLogic() {
     dispatchLedArray.turnOff();
   }
 
-  // Read serial input to control the button LED
-  if (Serial.available()) {
-    String command = Serial.readStringUntil('\n');
+  // Read SerialUSB input to control the button LED
+  if (SerialUSB.available()) {
+    String command = SerialUSB.readStringUntil('\n');
     
     if (command == "MODE_BUTTON_ON")
       digitalWrite(disp_or_arch_button_led, HIGH);
@@ -395,8 +392,8 @@ void fluxPotentiometerLogic() {
       int volume = map(rawValue, 0, 1023, 0, 100);
       if (abs(volume - lastfluxPotiValues[i]) > MIN_POTI_CHANGE) {
         lastfluxPotiValues[i] = volume;
-        Serial.println("flux_" + String(i) + ", loop, 0");
-        Serial.println("flux_" + String(i) + ", volume, " + String(volume));
+        SerialUSB.println("flux_" + String(i) + ", loop, 0");
+        SerialUSB.println("flux_" + String(i) + ", volume, " + String(volume));
       }
     }
   }
