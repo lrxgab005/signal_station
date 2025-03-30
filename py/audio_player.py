@@ -40,7 +40,7 @@ class AudioModule:
     self.channel_id = channel_id
     self.cooldown = cooldown
     self.last_command_time = 0
-    self.udp_sender = udp_sender  # Only for dispatch and archive
+    self.udp_sender = udp_sender
     self.playing = False
     self.sounds = self.load_sounds()
     self.channel = pygame.mixer.Channel(channel_id)
@@ -52,16 +52,17 @@ class AudioModule:
       logging.warning(f"Directory not found: {self.track_dir}")
       return sounds
     for fname in sorted(os.listdir(self.track_dir)):
-      if fname.lower().endswith(SUPPORTED_FORMATS):
-        path = os.path.join(self.track_dir, fname)
-        try:
-          sound = pygame.mixer.Sound(path)
-          sounds.append(sound)
-          logging.info(f"{self.name}: Loaded sound {path}")
-        except Exception as e:
-          logging.error(f"{self.name}: Error loading {path}: {e}")
-      else:
+      if not fname.lower().endswith(SUPPORTED_FORMATS):
         logging.warning(f"{self.name}: Skipping unsupported file {fname}")
+        continue
+
+      path = os.path.join(self.track_dir, fname)
+      try:
+        sound = pygame.mixer.Sound(path)
+        sounds.append(sound)
+        logging.info(f"{self.name}: Loaded sound {path}")
+      except Exception as e:
+        logging.error(f"{self.name}: Error loading {path}: {e}")
     return sounds
 
   def set_volume(self, volume_percent):
