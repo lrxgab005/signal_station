@@ -38,9 +38,9 @@ const int controlPanelDigitOnPins[2] = {31, 33};
 const int monitorPanelDigitOnPins[2] = {36, 38};
 
 // Interface constants
-const int NR_ARCHIVE = 81;
+const int NR_ARCHIVE = 33;
 const int NR_DISPATCHES = 8;
-const int NR_VIDEOS = 3;
+const int NR_VIDEOS = 13;
 
 // Dispatch LED Array pins 
 const int dispatchPins[NR_DISPATCHES] = {12, 11, 10, 9, 8, 7, 6, 5};
