@@ -228,7 +228,11 @@ ExecStop=/usr/local/bin/wifi-mode.sh stop
 [Install]
 WantedBy=multi-user.target
 EOF
+```
 
+Set service
+
+```bash
 sudo systemctl status wifi-hotspot
 sudo systemctl start wifi-hotspot
 sudo systemctl stop wifi-hotspot
@@ -272,9 +276,9 @@ exit
 
 ## Python
 
-### Setup
+### Setup Mac
 
-Create virtual env
+**Create virtual env**
 
 ```bash
 virtualenv env -p /opt/homebrew/bin/python3
@@ -284,13 +288,96 @@ Install requirements
 
 ```bash
 source env/bin/activate
-pip install -r requirements.txt
+pip install -r requirements_mac.txt
 ```
 
-### Enable Git LFS
+**Enable Git LFS**
 
 ```sh
 git lfs install
 git lfs pull
 ```
 
+### Setup PI
+
+**Create virtual env**
+
+```bash
+sudo apt-get install virtualenv
+virtualenv env -p python
+```
+
+**Install requirements**
+
+```bash
+. env/bin/activate
+pip install -r requirements_pi.txt
+```
+
+**Enable Git LFS**
+
+```sh
+sudo apt-get install git-lfs
+git lfs pull
+```
+
+### Run
+
+```bash
+sudo chmod u+x run_signal_station.sh
+```
+
+### Set config
+
+Set the IP address of the Android device running Kodi (check in wifi connection info):
+
+```bash 
+echo "192.168.4.2" > config/android_ip.conf
+```
+
+Set the Arduino serial port (check correct port in Arduino IDE):
+
+```bash
+# Mac example
+echo "/dev/tty.usbmodem101" > config/arduino_port.conf
+
+# Linux example 
+echo "/dev/ttyACM0" > config/arduino_port.conf
+```
+
+### Make signal station PI start up service
+
+Ensure signal_station is checked out in home directory
+
+```bash
+sudo chmod u+x signal_station-mode.sh
+```
+
+Create service
+
+```bash
+cat <<'EOF' | sudo tee /etc/systemd/system/signal-station.service
+[Unit]
+Description=Signal Station Service
+After=network.target NetworkManager.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/home/enos/signal_station/signal_station-mode.sh start
+ExecStop=/home/enos/signal_station/signal_station-mode.sh stop
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+Set service
+
+```bash
+sudo systemctl status signal-station
+sudo systemctl start signal-station
+sudo systemctl stop signal-station
+sudo systemctl enable signal-station
+sudo systemctl disable signal-station
+```
