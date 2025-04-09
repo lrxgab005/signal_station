@@ -5,6 +5,10 @@ import sys
 import requests
 import time
 import socket
+import logging
+
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s %(levelname)s: %(message)s")
 
 
 class KodiController:
@@ -15,12 +19,23 @@ class KodiController:
                user="kodi",
                password="kodi",
                directory=None):
+    self.wait_for_host(ip, 8080)
     self.url = f"http://{ip}:{port}/jsonrpc"
     self.auth = (user, password)
     # Auto-detect video source if not provided.
     self.directory = directory if directory is not None else self.get_first_video_source(
     )
     self.files = self.load_files(self.directory)
+
+  def wait_for_host(self, host, port, timeout=60):
+    logging.info(f"[INFO] Waiting for {host}:{port} to be reachable...")
+    while True:
+      try:
+        with socket.create_connection((host, port), timeout=2):
+          logging.info(f"[INFO] Connected to {host}:{port}")
+          return
+      except OSError:
+        time.sleep(1)
 
   def json_rpc_request(self, payload):
     headers = {'Content-Type': 'application/json'}
@@ -32,7 +47,7 @@ class KodiController:
       response.raise_for_status()
       return response.json()
     except requests.exceptions.RequestException as e:
-      print(f"Request error: {e}")
+      logging.error(f"Request error: {e}")
       sys.exit(1)
 
   def get_video_sources(self):
@@ -50,14 +65,14 @@ class KodiController:
   def get_first_video_source(self):
     sources = self.get_video_sources()
     if not sources:
-      print("No video sources found. Exiting.")
+      logging.info("No video sources found. Exiting.")
       sys.exit(1)
     first_source = sources[0]
     directory = first_source.get("file")
     if not directory:
-      print("The first video source has no directory. Exiting.")
+      logging.error("The first video source has no directory. Exiting.")
       sys.exit(1)
-    print(f"Using video source: {first_source.get('label', directory)}")
+    logging.info(f"Using video source: {first_source.get('label', directory)}")
     return directory
 
   def load_files(self, directory):
@@ -73,7 +88,7 @@ class KodiController:
     result = self.json_rpc_request(payload)
     files = result.get("result", {}).get("files", [])
     if not files:
-      print(f"No files found in directory: {directory}")
+      logging.error(f"No files found in directory: {directory}")
       sys.exit(1)
     return files
 
@@ -81,11 +96,12 @@ class KodiController:
     try:
       file_entry = self.files[index]
     except IndexError:
-      print(f"Index {index} out of range. Only {len(self.files)} available.")
+      logging.error(
+          f"Index {index} out of range. Only {len(self.files)} available.")
       return
     file_path = file_entry.get("file")
     if not file_path:
-      print("File entry is missing file path. Exiting.")
+      logging.error("File entry is missing file path. Exiting.")
       sys.exit(1)
     payload = {
         "jsonrpc": "2.0",
@@ -98,7 +114,7 @@ class KodiController:
         "id": 1
     }
     self.json_rpc_request(payload)
-    print(f"Playing file: {file_path}")
+    logging.info(f"Playing file: {file_path}")
 
 
 class UDPKodiController(KodiController):
