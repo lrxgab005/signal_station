@@ -389,3 +389,50 @@ systemctl --user stop signal-station
 systemctl --user enable signal-station
 systemctl --user disable signal-station
 ```
+### Setup shared folder
+
+On Raspberry Pi:
+
+1. Install Samba
+```bash
+sudo apt-get update
+sudo apt-get install samba samba-common-bin
+```
+
+2. Create and set permissions for shared directory
+```bash
+sudo mkdir /home/enos/ball_display_videos
+sudo chmod 777 /home/enos/ball_display_videos
+```
+
+3. Configure Samba
+```bash
+sudo vim.tiny /etc/samba/smb.conf
+```
+
+Add at bottom of file:
+```ini
+[ball_display_videos]
+path = /home/enos/ball_display_videos
+browseable = yes
+writeable = yes
+public = yes
+```
+
+4. Restart Samba
+```bash
+sudo systemctl restart smbd
+```
+Access on Kodi:
+
+1. Open Kodi File Manager
+2. Add source:
+  - Protocol: SMB
+  - Server: enos.local
+  - Share name: ball_display_videos
+  - Username/Password: Leave empty for guest access
+3. Navigate to Videos -> Files -> Add Videos
+  - Browse to the SMB share you just added
+  - Set content type as "Movies"
+  - OK to update library
+Access on Kodi:
