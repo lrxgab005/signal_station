@@ -2,15 +2,15 @@
 
 start_signal_station() {
   # Check if signal-station directory exists
-  if [ ! -d ~/signal-station ]; then
-    echo "Error: signal-station directory not found in home directory"
-    echo "Please clone signal-station repository in your home directory"
+  if [ ! -d ~/signal_station ]; then
+    echo "Error: signal_station directory not found in home directory"
+    echo "Please clone signal_station repository in your home directory"
     exit 1
-  }
-  
+  fi
+
   # Start the signal station
   echo "Starting signal station..."
-  cd ~/signal-station || exit 1
+  cd ~/signal_station || exit 1
   ./run_signal_station.sh
 }
 

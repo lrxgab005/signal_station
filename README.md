@@ -356,28 +356,36 @@ sudo chmod u+x signal_station-mode.sh
 Create service
 
 ```bash
-cat <<'EOF' | sudo tee /etc/systemd/system/signal-station.service
+mkdir -p /home/enos/.config/systemd/user/
+cat <<'EOF' | sudo tee /home/enos/.config/systemd/user/signal-station.service
 [Unit]
 Description=Signal Station Service
 After=network.target NetworkManager.service
 
 [Service]
-Type=oneshot
+Type=simple
 RemainAfterExit=yes
 ExecStart=/home/enos/signal_station/signal_station-mode.sh start
 ExecStop=/home/enos/signal_station/signal_station-mode.sh stop
+Environment=SDL_AUDIODRIVER=pulseaudio
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Restart=on-failure
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
 EOF
 ```
 
 Set service
 
 ```bash
-sudo systemctl status signal-station
-sudo systemctl start signal-station
-sudo systemctl stop signal-station
-sudo systemctl enable signal-station
-sudo systemctl disable signal-station
+loginctl enable-linger enos
+systemctl --user daemon-reexec
+systemctl --user daemon-reload
+
+systemctl --user status signal-station
+systemctl --user start signal-station
+systemctl --user stop signal-station
+systemctl --user enable signal-station
+systemctl --user disable signal-station
 ```

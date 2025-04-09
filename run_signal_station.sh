@@ -54,6 +54,7 @@ tmux send-keys -t ${PANES[0]} "$VENV_ACTIVATE && while true; do python3 $SERIAL_
 tmux send-keys -t ${PANES[1]} "$VENV_ACTIVATE && while true; do python3 $AUDIO_SCRIPT --udp_bind_port $AUDIO_BIND_PORT --udp_send_port $AUDIO_SEND_PORT; echo \"[$(date)] $AUDIO_SCRIPT crashed. Restarting in 1 second...\"; sleep 1; done" $CM
 tmux send-keys -t ${PANES[2]} "$VENV_ACTIVATE && while true; do python3 $KODI_SCRIPT --udp_bind_port $KODI_BIND_PORT --ip $ANDROID_IP; echo \"[$(date)] $KODI_SCRIPT crashed. Restarting in 1 second...\"; sleep 1; done" $CM
 
-# Attach to session
-tmux attach-session -t $SESSION_NAME
-
+# Don't attach if running from systemd (no TTY)
+if [ -t 1 ]; then
+  tmux attach-session -t $SESSION_NAME
+fi
