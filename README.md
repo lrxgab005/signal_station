@@ -56,25 +56,27 @@ Multiple devices communicate via various protocols to create an interactive medi
 A bridge application that runs on Raspberry Pi to connect Arduino serial output to UDP-based services.
 
 ```text
-                    +-------------+
-                    |   Arduino   |
-                    +-------------+
-                           │ Serial
-                           v  (USB)
-           +----------------------------------+
-           |       Serial-to-UDP Bridge       |
-           |  (sends UDP datagrams to 7070/1) |
-           +----------------------------------+
-                          │     UDP
-                          │ (localhost)
-           ┌──────────────┴──────────────┐
-           │                             │
-           ▼                             ▼
-+----------------------+       +----------------------+
-|  Kodi Controller     |       |    Audio Player      |
-|  (listens on 7071)   |       |  (listens on 7070)   |
-|                      |       |   (sends on 7072)    |
-+----------------------+       +----------------------+
+                                  +-------------+
+                                  |   Arduino   |
+                                  +-------------+
+                                        ^
+                                        │ Serial
+                                        v  (USB)
+                        +----------------------------------+
+                        |       Serial-to-UDP Bridge       |
+                        |  (sends UDP datagrams to 7070/1) |
+                        +----------------------------------+
+                                        ^     UDP
+                                        │ (localhost)
+       ┌────────────────────────────────┬───────────────────────────┐
+       │                                │                           │
+       v                                v                           v 
++----------------------+       +----------------------+    +----------------+
+|  Kodi Controller     |       |    Audio Player      |    | ADB Controller |
+|  (listens on 7071)   |       |  (listens on 7070)   |    | (listens:7073) |
+|                      |       |   (sends on 7072)    |    |                |
++----------------------+       +----------------------+    +----------------+
+```
 ```
 
 ## Setup Arduino
@@ -435,4 +437,25 @@ Access on Kodi:
   - Browse to the SMB share you just added
   - Set content type as "Movies"
   - OK to update library
-Access on Kodi:
+
+## Android
+
+### ADB Control
+
+1) Put phone into developer mode
+
+Press model number 5x in settings->about
+
+3) Install adb on raspberry pi
+
+```bash
+sudo apt install android-tools-adb -y
+```
+
+2) Setup ADB over wifi
+
+Phone
+
+```bash
+adb tcpip 5555
+```
