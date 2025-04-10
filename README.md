@@ -77,7 +77,7 @@ A bridge application that runs on Raspberry Pi to connect Arduino serial output 
 |                      |       |   (sends on 7072)    |    |                |
 +----------------------+       +----------------------+    +----------------+
 ```
-```
+
 
 ## Setup Arduino
 
