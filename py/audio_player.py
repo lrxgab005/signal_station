@@ -107,22 +107,17 @@ class AudioModule:
     self.playing = False
 
   def process_command(self, command, value):
-    try:
-      if command == "volume":
-        self.set_volume(int(value))
-      elif command == "play":
-        self.play_track(int(value))
-      elif command == "loop":
-        self.play_track(int(value), loop=True)
-      elif command == "stop":
-        self.channel.stop()
-        logging.info(f"{self.name}: Stopped playback")
-      else:
-        logging.warning(f"{self.name}: Unknown command '{command}'")
-    except Exception as e:
-      logging.error(
-          f"{self.name}: Error processing command '{command}' with value '{value}': {e}"
-      )
+    if command == "volume":
+      self.set_volume(int(value))
+    elif command == "play":
+      self.play_track(int(value))
+    elif command == "loop":
+      self.play_track(int(value), loop=True)
+    elif command == "stop":
+      self.channel.stop()
+      logging.info(f"{self.name}: Stopped playback")
+    else:
+      logging.warning(f"{self.name}: Unknown command '{command}'")
 
 
 class MultiChannelController:
@@ -150,7 +145,7 @@ class MultiChannelController:
       message = data.decode().strip()
       parts = [p.strip().lower() for p in message.split(",")]
       if len(parts) != 3:
-        logging.error(f"Invalid message format: {message}")
+        logging.debug(f"Invalid message format: {message}")
         return
       module_name, command, value = parts
       if module_name in self.modules:

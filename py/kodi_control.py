@@ -139,7 +139,7 @@ class UDPKodiController(KodiController):
     self.last_button_press = time.time()
     self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     self.udp_socket.bind((self.udp_bind_host, self.udp_bind_port))
-    print(
+    logging.info(
         f"UDP server listening on {(self.udp_bind_host, self.udp_bind_port)}")
 
   def process_message(self, data):
@@ -147,18 +147,18 @@ class UDPKodiController(KodiController):
       decoded = data.decode().strip()
       label, index = decoded.split(",")
       if label.strip().lower() != "video":
-        print(f"Ignoring non-video message: {decoded}")
+        logging.warning(f"Ignoring non-video message: {decoded}")
         return
       index = int(index.strip())
-    except Exception as e:
-      print(f"Error parsing UDP data: {data} ({e})")
+    except Exception:
       return
 
     if time.time() - self.last_button_press < self.button_cool_down_s:
       return
     self.last_button_press = time.time()
     if index >= len(self.files):
-      print(f"Index {index} out of range. Only {len(self.files)} available.")
+      logging.error(
+          f"Index {index} out of range. Only {len(self.files)} available.")
       return
     self.play_by_index(index)
 
@@ -169,7 +169,7 @@ class UDPKodiController(KodiController):
         if data:
           self.process_message(data)
     except KeyboardInterrupt:
-      print("Exiting UDP Kodi controller...")
+      logging.info("Exiting UDP Kodi controller...")
     finally:
       self.udp_socket.close()
 

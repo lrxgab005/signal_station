@@ -74,6 +74,8 @@ class ADBScreenController:
         data, _ = self.udp_socket.recvfrom(1024)
         if data:
           self.last_activity = time.time()
+          logging.info(
+              f"Received UDP message, resetting cooldown: {self.cooldown_s}s")
           self.turn_screen_on()
     except KeyboardInterrupt:
       logging.info("Shutting down...")
